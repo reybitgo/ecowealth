@@ -38,7 +38,7 @@ $range        = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => '']
 ?>
 <?php else: ?>
                   <div class="table-responsive mb-4">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Kind</th>
@@ -69,7 +69,7 @@ $range        = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => '']
                   <hr class="my-3" />
                   <h6 class="mb-2">By day</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Day</th>

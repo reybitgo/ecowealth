@@ -718,6 +718,70 @@ return [
         assert_contains('<option value="royalty" selected>', $royalty, 'the phone select shows the active stream');
     },
 
+    'UX-24 every header cell is scoped and report tables share one density' => function (): void {
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+        $headers   = 0;
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $path   = str_replace('\\', '/', $file->getPathname());
+            $source = (string) file_get_contents($file->getPathname());
+
+            /* A header cell must say which cells it describes: a column
+             * header, or a row header in the definition tables. */
+            preg_match_all('/<th\b([^>]*)>/i', $source, $matches);
+
+            foreach ($matches[1] as $attributes) {
+                $headers++;
+
+                if (preg_match('/\bscope="(?:col|row|colgroup|rowgroup)"/', $attributes) !== 1) {
+                    $offenders[] = $path . ': <th' . $attributes . '> has no scope';
+                }
+            }
+
+            /* One density per context: a report table is the compact table
+             * treatment, a page-level list keeps the default row height. */
+            if (str_contains($path, '/admin/reports/')) {
+                preg_match_all('/<table\b([^>]*)>/i', $source, $tables);
+
+                foreach ($tables[1] as $attributes) {
+                    if (!str_contains($attributes, 'table-sm') || !str_contains($attributes, 'report-table')) {
+                        $offenders[] = $path . ': a report table leaves the report density';
+                    }
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'every header cell is scoped and report tables share one density');
+        assert_true($headers >= 200, 'the sweep reads the tables');
+
+        /* A level is a number even when it is printed as a badge: its header
+         * and its cell sit on the same right edge as the money columns. */
+        $levelColumns = [
+            'admin/commissions/index.php'        => '<th scope="col" class="text-end">Lvl</th>',
+            'admin/commissions/_repeat_rows.php' => '<td class="text-end text-nowrap">',
+            'admin/orders/_unilevel.php'         => '<th scope="col" class="text-end">Lvl</th>',
+        ];
+
+        foreach ($levelColumns as $path => $needle) {
+            assert_contains($needle, (string) file_get_contents($root . '/' . $path), $path . ' right-aligns its level column');
+        }
+
+        assert_contains(
+            '<td class="text-end text-nowrap">L<?= (int) $award[\'level\'] ?></td>',
+            (string) file_get_contents($root . '/admin/orders/_unilevel.php'),
+            'the order ladder level cell is right-aligned'
+        );
+    },
+
     'Escaping is applied everywhere user text is printed' => function (): void {
         $html = View::capture('errors/404', [
             'code'    => 404,

@@ -143,7 +143,7 @@ $membersUrl = url('admin/members?harvest=yes');
                   </p>
 <?php elseif ($queue['rows'] !== []): ?>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-2">
+                    <table class="table table-sm align-middle mb-2 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Position</th>
@@ -178,7 +178,7 @@ $membersUrl = url('admin/members?harvest=yes');
 
                   <h6 class="mb-2">The ladder in this window</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-2">
+                    <table class="table table-sm align-middle mb-2 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Level</th>
@@ -223,7 +223,7 @@ $membersUrl = url('admin/members?harvest=yes');
 <?php if ($months !== []): ?>
                   <h6 class="mb-2">By month</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Month</th>

@@ -347,7 +347,7 @@ return [
         assert_contains('data-live-region="member-pagination"', $html);
         assert_contains('data-live-key="' . (int) $maria['id'] . '"', $html, 'the active filter emits a keyed row');
         assert_contains('data-live-focus="member"', $html);
-        assert_contains('<th>Rank</th>', $html, 'the directory has the Rank column');
+        assert_contains('<th scope="col">Rank</th>', $html, 'the directory has the Rank column');
         assert_contains('data-rank-distribution', $html);
         assert_contains('data-live-hold="dirty"', $html);
         assert_contains('data-live-status', $html);

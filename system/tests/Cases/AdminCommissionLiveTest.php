@@ -578,7 +578,7 @@ return [
         assert_contains('aria-current="page"', $html, 'the repeat pill is the active one');
         assert_contains('Package commissions', $html);
         assert_contains('Repeat-purchase bonus', $html);
-        assert_contains('<th scope="col">Lvl</th>', $html);
+        assert_contains('<th scope="col" class="text-end">Lvl</th>', $html);
         assert_contains('name="product_id"', $html);
         assert_contains('name="ledger" value="repeat"', $html);
         assert_not_contains('<th scope="col">Type</th>', $html, 'the repeat table has no direct/indirect type');

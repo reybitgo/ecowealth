@@ -50,28 +50,28 @@ if ($upline > 0) {
                     <div class="card-body">
                       <table class="table table-sm mb-3">
                         <tr>
-                          <th style="width:35%" class="text-body-secondary">Upline</th>
+                          <th scope="row" style="width:35%" class="text-body-secondary">Upline</th>
                           <td><?= e($uplName) ?></td>
                         </tr>
                         <tr>
-                          <th class="text-body-secondary">Side</th>
+                          <th scope="row" class="text-body-secondary">Side</th>
                           <td><?= e(BinaryNode::SIDE_LABELS[$side] ?? $side) ?></td>
                         </tr>
                         <tr>
-                          <th class="text-body-secondary">Depth</th>
-                          <td><?= $depth ?></td>
+                          <th scope="row" class="text-body-secondary text-end">Depth</th>
+                          <td class="text-end"><?= $depth ?></td>
                         </tr>
                         <tr>
-                          <th class="text-body-secondary">Path</th>
+                          <th scope="row" class="text-body-secondary">Path</th>
                           <td class="text-truncate" style="max-width:16rem" title="<?= e($path) ?>"><?= e($path) ?></td>
                         </tr>
                         <tr>
-                          <th class="text-body-secondary">Placed at</th>
+                          <th scope="row" class="text-body-secondary">Placed at</th>
                           <td><?= e($placed) ?></td>
                         </tr>
                         <tr>
-                          <th class="text-body-secondary">Moves</th>
-                          <td><?= $moves ?></td>
+                          <th scope="row" class="text-body-secondary text-end">Moves</th>
+                          <td class="text-end"><?= $moves ?></td>
                         </tr>
                       </table>
 

@@ -479,7 +479,7 @@ $headerDescription = match (true) {
                   <table class="table table-hover align-middle commission-table mb-0">
                     <thead>
                       <tr>
-                        <th scope="col">Lvl</th>
+                        <th scope="col" class="text-end">Lvl</th>
                         <th scope="col">Recipient</th>
                         <th scope="col">Buyer</th>
                         <th scope="col">Product</th>

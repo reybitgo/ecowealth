@@ -238,13 +238,13 @@ $live = $live ?? [
                   <table class="table table-hover align-middle mb-0">
                     <thead>
                       <tr>
-                        <th>Code</th>
-                        <th>Package</th>
-                        <th class="text-end">Price</th>
-                        <th>Status</th>
-                        <th>Used by</th>
-                        <th>Issued</th>
-                        <th>Expires</th>
+                        <th scope="col">Code</th>
+                        <th scope="col">Package</th>
+                        <th scope="col" class="text-end">Price</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Used by</th>
+                        <th scope="col">Issued</th>
+                        <th scope="col">Expires</th>
                       </tr>
                     </thead>
 <?= View::capture('admin/codes/_rows', ['codes' => $codes, 'filters' => $filters]) ?>

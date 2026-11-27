@@ -87,7 +87,7 @@ $generalHarvest = $general_harvest ?? null;
                     <thead>
                       <tr>
 <?php foreach (AdminMemberController::DIRECTORY_COLUMNS as $column): ?>
-                        <th<?= $column['class'] !== '' ? ' class="' . e($column['class']) . '"' : '' ?>><?= e($column['label']) ?></th>
+                        <th scope="col"<?= $column['class'] !== '' ? ' class="' . e($column['class']) . '"' : '' ?>><?= e($column['label']) ?></th>
 <?php endforeach; ?>
                       </tr>
                     </thead>

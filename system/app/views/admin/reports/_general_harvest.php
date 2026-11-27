@@ -154,7 +154,7 @@ $ledgerUrl = url('admin/commissions?ledger=general_harvest');
 <?php if ($frontier !== []): ?>
                   <h6 class="mb-2">The frontier — what is about to pay</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-3">
+                    <table class="table table-sm align-middle mb-3 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Level</th>
@@ -193,7 +193,7 @@ $ledgerUrl = url('admin/commissions?ledger=general_harvest');
 
                   <h6 class="mb-2">The ladder in this window</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-3">
+                    <table class="table table-sm align-middle mb-3 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Level</th>
@@ -240,7 +240,7 @@ $ledgerUrl = url('admin/commissions?ledger=general_harvest');
 <?php if ($months !== []): ?>
                   <h6 class="mb-2">By month</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Month</th>
@@ -268,7 +268,7 @@ $ledgerUrl = url('admin/commissions?ledger=general_harvest');
 <?php if ($bands !== []): ?>
                   <h6 class="mb-2">Where the money goes — position bands</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Band</th>

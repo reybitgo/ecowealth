@@ -28,11 +28,11 @@ $roleTone = static fn (string $role): string => match ($role) {
                       <table class="table dashboard-table mb-0">
                         <thead>
                           <tr>
-                            <th>Account</th>
-                            <th class="d-none d-md-table-cell">Role</th>
-                            <th>Status</th>
-                            <th class="d-none d-lg-table-cell">Joined</th>
-                            <th class="d-none d-lg-table-cell text-end text-nowrap">Last sign-in</th>
+                            <th scope="col">Account</th>
+                            <th scope="col" class="d-none d-md-table-cell">Role</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="d-none d-lg-table-cell">Joined</th>
+                            <th scope="col" class="d-none d-lg-table-cell text-end text-nowrap">Last sign-in</th>
                           </tr>
                         </thead>
                         <tbody>

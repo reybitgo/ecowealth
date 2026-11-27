@@ -35,7 +35,7 @@ $range          = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => '
 ?>
 <?php else: ?>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 report-table">
                       <thead>
                         <tr>
                           <th scope="col">Product</th>

@@ -20,11 +20,11 @@ declare(strict_types=1);
                       <table class="table table-sm table-hover align-middle mb-0">
                         <thead>
                           <tr>
-                            <th>Package</th>
-                            <th>Method</th>
-                            <th class="text-end">Amount</th>
-                            <th>Status</th>
-                            <th>When</th>
+                            <th scope="col">Package</th>
+                            <th scope="col">Method</th>
+                            <th scope="col" class="text-end">Amount</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">When</th>
                           </tr>
                         </thead>
                         <tbody>

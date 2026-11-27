@@ -156,7 +156,7 @@ $cards = [
                 </div>
 
                 <div class="table-responsive">
-                  <table class="table table-hover align-middle mb-0 report-table audit-table">
+                  <table class="table table-sm table-hover align-middle mb-0 report-table audit-table">
                     <thead>
                       <tr>
                         <th scope="col">When</th>

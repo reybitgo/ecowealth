@@ -32,10 +32,10 @@ $orderStats = $order_stats ?? ['total' => 0, 'open' => 0, 'completed' => 0, 'spe
                       <table class="table table-hover align-middle mb-0">
                         <thead>
                           <tr>
-                            <th>Order</th>
-                            <th>Placed</th>
-                            <th class="text-end">Total</th>
-                            <th>Status</th>
+                            <th scope="col">Order</th>
+                            <th scope="col">Placed</th>
+                            <th scope="col" class="text-end">Total</th>
+                            <th scope="col">Status</th>
                           </tr>
                         </thead>
                         <tbody>

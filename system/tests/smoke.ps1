@@ -3361,7 +3361,7 @@ try {
     # only the structure is asserted, never a live count.
     $p19bMembers = Invoke-App -Path '/admin/members' -Session 'admin'
     Assert-That 'P19B-T23' ($p19bMembers.Status -eq 200 `
-            -and $p19bMembers.Body -match '<th>Rank</th>' `
+            -and $p19bMembers.Body -match '<th scope="col">Rank</th>' `
             -and $p19bMembers.Body -match 'data-rank-distribution' `
             -and $p19bMembers.Body -match 'data-rank-count="member"' `
             -and $p19bMembers.Body -match 'data-rank-count="director"' `
@@ -3575,7 +3575,7 @@ try {
     # P20G-T4 - the directory's Harvest column, queue card and filter.
     $p20gMembers = Invoke-App -Path '/admin/members' -Session 'admin'
     Assert-That 'P20G-T4' ($p20gMembers.Status -eq 200 `
-            -and $p20gMembers.Body -match '<th>Harvest</th>' `
+            -and $p20gMembers.Body -match '<th scope="col">Harvest</th>' `
             -and $p20gMembers.Body -match 'data-live-region="member-harvest"' `
             -and $p20gMembers.Body -match 'Team Harvest queue' `
             -and $p20gMembers.Body -match 'name="harvest"' `
@@ -3721,7 +3721,7 @@ try {
             -and $p20gDashboard.Body -match 'data-live-region="dashboard-team-harvest"' `
             -and $p20gDashboard.Body -match 'not currently paying' `
             -and $p20gGenealogy.Body -match ('Harvest #' + $p20gPosition) `
-            -and $p20gGenealogy.Body -match '<th>Harvest</th>') `
+            -and $p20gGenealogy.Body -match '<th scope="col">Harvest</th>') `
         "the member statement, dashboard tile and genealogy badge show position #$p20gPosition (status=$($p20gStatement.Status)/$($p20gDashboard.Status)/$($p20gGenealogy.Status))"
 
     # ---- Phase 19D: the admin Royalty ledger ----------------------------
@@ -3956,7 +3956,7 @@ try {
             -and $p17dRepeat.Body -match 'data-live-region="repeat-stats"' `
             -and $p17dRepeat.Body -match 'data-live-region="repeat-periods"' `
             -and $p17dRepeat.Body -match 'data-live-region="repeat-rows"' `
-            -and $p17dRepeat.Body -match '<th scope="col">Lvl</th>' `
+            -and $p17dRepeat.Body -match '<th scope="col" class="text-end">Lvl</th>' `
             -and $p17dRepeat.Body -match 'name="product_id"' `
             -and $p17dRepeat.Body -match 'name="ledger" value="repeat"' `
             -and $p17dRowsOrEmpty `

@@ -19,12 +19,12 @@ declare(strict_types=1);
                       <table class="table table-sm table-hover align-middle mb-0">
                         <thead>
                           <tr>
-                            <th>#</th>
-                            <th>Package</th>
-                            <th>Method</th>
-                            <th class="text-end">Amount</th>
-                            <th>Status</th>
-                            <th>Requested</th>
+                            <th scope="col" class="text-end">#</th>
+                            <th scope="col">Package</th>
+                            <th scope="col">Method</th>
+                            <th scope="col" class="text-end">Amount</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Requested</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -44,7 +44,7 @@ declare(strict_types=1);
 <?php endif; ?>
 <?php foreach ($activations as $activation): ?>
                           <tr>
-                            <td class="text-body-secondary">#<?= (int) $activation['id'] ?></td>
+                            <td class="text-body-secondary text-end">#<?= (int) $activation['id'] ?></td>
                             <td class="text-nowrap"><?= e((string) $activation['package_name']) ?></td>
                             <td><?= e(payment_method_label((string) $activation['payment_method'])) ?></td>
                             <td class="text-end text-nowrap"><?= e(money((float) $activation['amount'])) ?></td>

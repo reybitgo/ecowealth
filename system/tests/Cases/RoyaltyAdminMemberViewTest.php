@@ -150,7 +150,7 @@ return [
             'live'        => Live::meta('admin.members', 'page'),
         ]);
 
-        assert_contains('<th>Rank</th>', $html, 'the directory table has the Rank column');
+        assert_contains('<th scope="col">Rank</th>', $html, 'the directory table has the Rank column');
         assert_contains('data-live-key="' . $tree['director'] . '"', $html);
         assert_contains('Rank distribution', $html);
 
@@ -185,7 +185,7 @@ return [
         $directoryHead = '';
 
         foreach ($heads[1] as $head) {
-            if (strpos($head, '<th>Rank</th>') !== false) {
+            if (strpos($head, '<th scope="col">Rank</th>') !== false) {
                 $directoryHead = $head;
                 break;
             }

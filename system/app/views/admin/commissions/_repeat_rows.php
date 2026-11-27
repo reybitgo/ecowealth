@@ -88,7 +88,7 @@ $dueAt = static function (array $award): ?string {
     $walletUrl = url('admin/wallets/' . (int) $award['user_id'] . '?q=' . rawurlencode($orderNo));
 ?>
                       <tr data-live-key="<?= $id ?>">
-                        <td class="text-nowrap">
+                        <td class="text-end text-nowrap">
                           <span class="badge bg-label-secondary" title="Level <?= $level ?>">L<?= $level ?></span>
                         </td>
                         <td>

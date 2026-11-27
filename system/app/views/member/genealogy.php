@@ -355,11 +355,11 @@ if ($binary_unavailable === '') {
                         <table class="table table-hover align-middle mb-0">
                           <thead>
                             <tr>
-                              <th>Member</th>
-                              <th>Package</th>
-                              <th>Status</th>
-                              <th>Harvest</th>
-                              <th>Joined</th>
+                              <th scope="col">Member</th>
+                              <th scope="col">Package</th>
+                              <th scope="col">Status</th>
+                              <th scope="col">Harvest</th>
+                              <th scope="col">Joined</th>
                             </tr>
                           </thead>
 <?= View::capture('member/genealogy/_recruits_rows', [

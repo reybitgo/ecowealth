@@ -254,12 +254,12 @@ $checked = static function (string $key) use ($settings): bool {
                         <table class="table table-sm align-middle mb-0">
                           <thead>
                             <tr>
-                              <th>Rank</th>
-                              <th>Requirement</th>
-                              <th class="text-end">Monthly group quota</th>
-                              <th class="text-end">Group %</th>
-                              <th class="text-end">Personal %</th>
-                              <th class="text-end">Own purchase</th>
+                              <th scope="col">Rank</th>
+                              <th scope="col">Requirement</th>
+                              <th scope="col" class="text-end">Monthly group quota</th>
+                              <th scope="col" class="text-end">Group %</th>
+                              <th scope="col" class="text-end">Personal %</th>
+                              <th scope="col" class="text-end">Own purchase</th>
                             </tr>
                           </thead>
                           <tbody>

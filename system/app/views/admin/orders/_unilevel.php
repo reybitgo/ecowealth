@@ -168,7 +168,7 @@ $dueAt = static function (array $award): ?string {
                         <table class="table table-sm align-middle mb-0 order-unilevel-table">
                           <thead>
                             <tr>
-                              <th scope="col">Lvl</th>
+                              <th scope="col" class="text-end">Lvl</th>
                               <th scope="col">Recipient</th>
                               <th scope="col">Product</th>
                               <th scope="col" class="text-end">Base</th>
@@ -195,7 +195,7 @@ $dueAt = static function (array $award): ?string {
     $holdDays    = max(0, (int) ($award['hold_days'] ?? 0));
 ?>
                             <tr>
-                              <td class="text-nowrap">L<?= (int) $award['level'] ?></td>
+                              <td class="text-end text-nowrap">L<?= (int) $award['level'] ?></td>
                               <td class="text-nowrap">
 <?php if ($hasWallet): ?>
                                 <a href="<?= e($walletUrl) ?>" class="text-body">

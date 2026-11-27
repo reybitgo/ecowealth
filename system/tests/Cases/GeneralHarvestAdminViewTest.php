@@ -302,8 +302,8 @@ return [
 
         /* UX-23: the column names the stream instead of the abbreviation, and
          * both cell states say what N / 10 counts. */
-        assert_contains('<th class="text-nowrap">General Harvest</th>', $page['html'], 'the column is spelled out');
-        assert_not_contains('<th class="text-nowrap">GH</th>', $page['html'], 'the bare abbreviation is gone');
+        assert_contains('<th scope="col" class="text-nowrap">General Harvest</th>', $page['html'], 'the column is spelled out');
+        assert_not_contains('<th scope="col" class="text-nowrap">GH</th>', $page['html'], 'the bare abbreviation is gone');
 
         $paid = $membersPage(['board' => 'paid']);
         assert_true(
