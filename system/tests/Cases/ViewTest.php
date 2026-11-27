@@ -606,6 +606,33 @@ return [
         assert_same([], $offenders, 'no template caps the zoom level');
     },
 
+    'UX-35 the login password toggle is a control' => function (): void {
+        $root  = dirname(__DIR__, 2);
+        $login = (string) file_get_contents($root . '/public/login.php');
+
+        /* The show/hide affordance used to be a span: no role, no focus,
+         * no name and no state. It is now a real button whose name and
+         * pressed state follow what it does. */
+        assert_same(
+            1,
+            preg_match(
+                '/<button\s+type="button"\s+class="input-group-text cursor-pointer"\s+data-password-toggle\s+aria-controls="password"\s+aria-label="Show password"\s+aria-pressed="false"\s*>/',
+                $login
+            ),
+            'the password toggle is a button with a name, a target and a pressed state'
+        );
+
+        assert_not_contains('<span class="input-group-text cursor-pointer"', $login, 'the toggle is no longer a span');
+        assert_not_contains('aria-describedby="password"', $login, 'the password input no longer describes itself');
+        assert_not_contains('form-password-toggle', $login, 'the theme toggle no longer double-handles the click');
+
+        $script = (string) file_get_contents($root . '/public/assets/js/app-login.js');
+        assert_contains("input.type = show ? 'text' : 'password';", $script, 'the toggle reveals and hides the password');
+        assert_contains("toggle.setAttribute('aria-pressed'", $script, 'the toggle reports its pressed state');
+        assert_contains("toggle.setAttribute('aria-label'", $script, 'the toggle renames itself for the next action');
+        assert_contains("\$auth_page_js = ['assets/js/app-login.js'];", $login, 'the page loads its toggle script');
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',

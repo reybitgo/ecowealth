@@ -46,6 +46,7 @@ if (is_post()) {
 
 $attemptsLeft = login_attempts_left();
 $page_title   = 'Sign in';
+$auth_page_js = ['assets/js/app-login.js'];
 
 require __DIR__ . '/../app/layout/auth_header.php';
 ?>
@@ -106,7 +107,7 @@ require __DIR__ . '/../app/layout/auth_header.php';
                     autofocus
                   />
                 </div>
-                <div class="mb-6 form-password-toggle form-control-validation">
+                <div class="mb-6 form-control-validation">
                   <label class="form-label" for="password">Password</label>
                   <div class="input-group input-group-merge">
                     <input
@@ -115,11 +116,17 @@ require __DIR__ . '/../app/layout/auth_header.php';
                       class="form-control"
                       name="password"
                       placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                      aria-describedby="password"
                     />
-                    <span class="input-group-text cursor-pointer"
-                      ><i class="icon-base bx bx-hide"></i
-                    ></span>
+                    <button
+                      type="button"
+                      class="input-group-text cursor-pointer"
+                      data-password-toggle
+                      aria-controls="password"
+                      aria-label="Show password"
+                      aria-pressed="false"
+                    >
+                      <i class="icon-base bx bx-hide" aria-hidden="true"></i>
+                    </button>
                   </div>
                 </div>
                 <div class="mb-7">

@@ -1,0 +1,55 @@
+UX-35 — the login password toggle from the keyboard
+27 November 2026 · headless Chrome 158.0.8127.37 (DevTools protocol)
+http://127.0.0.1:8080/login · default viewport
+
+Method
+  Open /login, focus #password, then press Tab through Input.dispatchKeyEvent
+  (rawKeyDown + char + keyUp) and read the active element. Activate the
+  focused toggle with Enter and again with Space, reading input.type,
+  aria-pressed, aria-label and the icon class after each step. The
+  accessibility tree comes from the Desktop preview's snapshot of the same
+  page.
+
+Accessibility tree
+  button "Show password" [invalid=false, focusable, focused, pressed=false]
+  Tab order index 3 — directly after the password field, before "Remember me".
+
+Results
+  {
+    "before": {
+      "inputType": "password",
+      "pressed": "false",
+      "label": "Show password",
+      "icon": "icon-base bx bx-hide",
+      "focused": false
+    },
+    "afterTab": {
+      "inputType": "password",
+      "pressed": "false",
+      "label": "Show password",
+      "icon": "icon-base bx bx-hide",
+      "focused": true
+    },
+    "afterEnter": {
+      "inputType": "text",
+      "pressed": "true",
+      "label": "Hide password",
+      "icon": "icon-base bx bx-show",
+      "focused": true
+    },
+    "afterSpace": {
+      "inputType": "password",
+      "pressed": "false",
+      "label": "Show password",
+      "icon": "icon-base bx bx-hide",
+      "focused": true
+    },
+    "tabOrder": 3
+  }
+
+Reading
+  Tab moves focus from the password field onto the toggle, so it is reachable
+  without a mouse; Enter reveals the password and Space hides it again, with
+  the name ("Show password" / "Hide password"), the pressed state and the eye
+  icon following the action. Both keyboard activation paths therefore work on
+  the same handler a mouse click uses.
