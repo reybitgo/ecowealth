@@ -98,8 +98,9 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(89, $live);
+        assert_count(90, $live);
         assert_same('any', $live['GET /']);
+        assert_same('member', $live['GET /search']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
         assert_same('admin', $live['GET /admin']);

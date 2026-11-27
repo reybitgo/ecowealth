@@ -267,5 +267,6 @@ return [
         $extension('GET', '/admin/reports/export', 15, 'One CSV per report (sales, commissions, wallet statement, payout register, codes).'),
         $extension('GET', '/admin/audit', 15, 'Admin audit desk over the append-only audit_log.'),
         $extension('POST', '/admin/members/{id}/placement', 22, 'Audited empty-subtree placement move — extension, no reference page.'),
+        $extension('GET', '/search', 21, 'Grouped global search: products, members, orders and registration codes (UX-26).'),
     ],
 ];

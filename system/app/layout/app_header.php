@@ -23,6 +23,8 @@ declare(strict_types=1);
  * @var array      $nav_badges   Optional menu counters, e.g. ['cart' => 3]
  * @var string     $nav_search_placeholder Optional navbar search hint
  * @var string     $nav_search_url         Optional navbar search target
+ * @var string     $nav_search_label       Optional accessible name for the search box
+ * @var string     $nav_search_value       Optional text the search box starts with
  */
 
 $layout      = in_array($layout ?? 'member', ['member', 'admin', 'plain'], true) ? ($layout ?? 'member') : 'member';
@@ -55,10 +57,17 @@ if ($me !== null) {
 
 $nav_badges = array_merge(['cart' => $cart_count], $nav_badges);
 
-/* A page can point the shared search at its own catalogue — the shop does
- * this for admins so their back-office sidebar does not change its target. */
-$nav_search_placeholder = $nav_search_placeholder ?? ($layout === 'admin' ? 'Search products…' : 'Search the shop…');
-$nav_search_url         = $nav_search_url ?? url($layout === 'admin' ? 'admin/products' : 'shop');
+/* The default search covers every destination its layout may open (UX-26),
+ * so the field is honest about what it searches. A page can still scope it —
+ * the shop points it at the catalogue. */
+$nav_search_placeholder = $nav_search_placeholder ?? ($layout === 'admin'
+    ? 'Search products, members, orders, codes…'
+    : 'Search products and your orders…');
+$nav_search_label       = $nav_search_label ?? ($layout === 'admin'
+    ? 'Search products, members, orders and registration codes'
+    : 'Search products and your orders');
+$nav_search_value       = (string) ($nav_search_value ?? '');
+$nav_search_url         = $nav_search_url ?? url('search');
 $html_class  = $has_menu
     ? 'layout-navbar-fixed layout-menu-fixed layout-compact customizer-hide'
     : 'layout-compact customizer-hide';
@@ -183,7 +192,8 @@ $html_class  = $has_menu
                     id="navbarQuickSearch"
                     class="form-control border-0 bg-transparent shadow-none ps-2"
                     placeholder="<?= e($nav_search_placeholder) ?>"
-                    aria-label="Search"
+                    aria-label="<?= e($nav_search_label) ?>"
+                    value="<?= e($nav_search_value) ?>"
                     data-search-url="<?= e($nav_search_url) ?>"
                   />
                 </div>

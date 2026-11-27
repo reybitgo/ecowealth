@@ -2,8 +2,10 @@
  * EcoWealth — shared shell behaviour
  * ----------------------------------
  * Makes the navbar quick-search a real control instead of decoration:
- * Enter jumps to the catalogue's own search results, "/" focuses it and
- * Escape clears it. Kept dependency-free so it runs before main.js.
+ * Enter opens the destination named by data-search-url (the global
+ * search by default, a page's own list when it scopes the field), "/"
+ * focuses it and Escape clears it. Kept dependency-free so it runs
+ * before main.js.
  */
 (function () {
   'use strict';

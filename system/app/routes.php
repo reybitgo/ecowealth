@@ -214,4 +214,10 @@ return [
     ['GET',  '/admin/reports',                   [AdminReportController::class, 'index'],      'admin'],     // extension
     ['GET',  '/admin/reports/export',            [AdminReportController::class, 'export'],     'admin'],     // extension
     ['GET',  '/admin/audit',                     [AdminAuditController::class, 'index'],       'admin'],     // extension
+
+    /* ---------- UX — global search ----------------------------------
+     * One query across the destinations the navbar field promises
+     * (UX-26): products, members, orders and registration codes for
+     * staff; the catalogue and the member's own orders otherwise. */
+    ['GET',  '/search',                          [SearchController::class, 'index'],           'member'],  // extension
 ];
