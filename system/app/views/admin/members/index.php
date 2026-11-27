@@ -16,7 +16,7 @@ declare(strict_types=1);
  *
  * @var array{total:int, active:int, pending:int, suspended:int, with_package:int, new_week:int} $stats
  * @var array{member:int, leader:int, supervisor:int, manager:int, director:int, ranked:int, total:int} $rank_counts
- * @var array{q:string, status:string, package:string, harvest:string, board:string} $filters
+ * @var array{q:string, status:string, package:string, harvest:string, board:string, placement:string} $filters
  * @var Paginator                  $pager
  * @var list<array<string, mixed>> $members
  * @var list<array{id:int, name:string, members:int}> $packages

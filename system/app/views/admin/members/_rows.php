@@ -13,17 +13,22 @@ declare(strict_types=1);
  * for everyone else. It never recomputes a position from a count (Rule 5).
  *
  * @var list<array<string, mixed>> $members
- * @var array{q:string, status:string, package:string, harvest:string} $filters
+ * @var array{q:string, status:string, package:string, harvest:string, board:string, placement:string} $filters
  */
 
 /* The header and this empty row both come from one column list (UX-21). */
 $columns = count(AdminMemberController::DIRECTORY_COLUMNS);
 
-$hasFilters = (string) $filters['q'] !== ''
-    || (string) $filters['status'] !== ''
-    || (string) $filters['package'] !== ''
-    || (string) $filters['harvest'] !== ''
-    || (string) ($filters['board'] ?? '') !== '';
+/* UX-22: "has filters" is derived from the model's own filter defaults, so
+ * a filter added to the form cannot be left out of this empty state. */
+$hasFilters = false;
+
+foreach (Member::filterDefaults() as $key => $default) {
+    if ((string) ($filters[$key] ?? $default) !== (string) $default) {
+        $hasFilters = true;
+        break;
+    }
+}
 ?>
                     <tbody data-live-region="member-rows">
 <?php if ($members === []): ?>
@@ -34,7 +39,7 @@ $hasFilters = (string) $filters['q'] !== ''
         'icon'         => 'bx bx-group',
         'title'        => $hasFilters ? 'No members match these filters' : 'No members yet',
         'text'         => $hasFilters
-            ? 'Try a different search, status, package or Team Harvest state.'
+            ? 'Try a different search, or clear a filter to see more members.'
             : 'Members appear here as soon as they register.',
         'action_href'  => $hasFilters ? 'admin/members' : '',
         'action_label' => $hasFilters ? 'Clear filters' : '',

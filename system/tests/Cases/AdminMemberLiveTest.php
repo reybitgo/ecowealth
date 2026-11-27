@@ -623,4 +623,32 @@ return [
 
         test_signed_in_as(null);
     },
+
+    /* ==========================================================
+     *  UX-22 — the empty state reads every filter
+     * ========================================================== */
+
+    'UX-22 a placement-only filter shows the filtered empty state' => function (): void {
+        $render = static function (array $filters): string {
+            return View::capture('admin/members/_rows', [
+                'members' => [],
+                'filters' => $filters + Member::filterDefaults(),
+            ]);
+        };
+
+        /* Placement is the filter the hand-written list used to miss. */
+        foreach ([['placement' => 'floating'], ['placement' => 'no-node'], ['board' => 'paid']] as $filters) {
+            $rows = $render($filters);
+
+            assert_contains('No members match these filters', $rows);
+            assert_contains('Clear filters', $rows);
+            assert_not_contains('No members yet', $rows);
+        }
+
+        /* The unfiltered defaults still read as a first run. */
+        $fresh = $render([]);
+
+        assert_contains('No members yet', $fresh);
+        assert_not_contains('No members match these filters', $fresh);
+    },
 ];

@@ -14,7 +14,7 @@ declare(strict_types=1);
  * two values are the whole vocabulary — an unknown value is "no filter"
  * (Rule 9), so the select can never invent a third state.
  *
- * @var array{q:string, status:string, package:string, harvest:string} $filters
+ * @var array{q:string, status:string, package:string, harvest:string, board:string, placement:string} $filters
  * @var list<array{id:int, name:string, members:int}> $packages
  */
 
