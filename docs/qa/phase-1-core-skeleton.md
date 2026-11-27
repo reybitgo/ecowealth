@@ -63,11 +63,10 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 **Expected**
 
 - The address bar now ends with `/login`.
-- The page shows **“Welcome to EcoWealth! 👋”** and “Please sign-in to your account and start the
-  adventure”.
+- The page shows **“Sign in to EcoWealth”** and “Manage your membership, orders and e-wallet.”
 - A **Demo account** box is visible with `admin` / `Admin@123`.
-- Email/Username, Password, Remember Me and a **Login** button are present.
-- The footer says “New on our platform? **Create an account**”.
+- Email/Username, Password, Remember me and a **Sign in** button are present.
+- The footer says “New to EcoWealth? **Create an account**”.
 
 ### QA1-02 — The login page looks complete (visual check)
 

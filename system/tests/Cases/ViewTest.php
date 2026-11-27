@@ -413,7 +413,7 @@ return [
             'the logo alt is the configured brand'
         );
         assert_contains(
-            'Welcome to ' . APP_NAME . '!',
+            'Sign in to <?= e(APP_NAME) ?>',
             (string) file_get_contents($root . '/public/login.php'),
             'the sign-in heading is the configured brand'
         );
@@ -514,6 +514,35 @@ return [
             "'label' => 'Repeat-purchase bonus'",
             (string) file_get_contents($root . '/app/views/member/earnings.php'),
             'the statement names the same program'
+        );
+    },
+
+    'UX-33 the login page speaks in the product voice' => function (): void {
+        $login = (string) file_get_contents(dirname(__DIR__, 2) . '/public/login.php');
+
+        /* The template's stock auth copy, its emoji heading and its
+         * title-cased checkbox are gone; the page reads like the product. */
+        $retired = [
+            'start the adventure',
+            'Please sign-in to your account',
+            'Remember Me',
+            'New on our platform',
+            '&#x1f44b;',
+            'Login',
+        ];
+
+        foreach ($retired as $copy) {
+            assert_not_contains($copy, $login, 'retired template copy: ' . $copy);
+        }
+
+        assert_contains('Sign in to <?= e(APP_NAME) ?>', $login, 'the heading names the configured product');
+        assert_contains('Manage your membership, orders and e-wallet.', $login, 'the description names the job');
+        assert_contains('Remember me', $login, 'the remember option is sentence-cased');
+        assert_contains('New to <?= e(APP_NAME) ?>?', $login, 'the sign-up prompt names the configured product');
+        assert_same(
+            1,
+            preg_match('/\?>>\s*Sign in\s*<\/button>/', $login),
+            'the submit button reads "Sign in"'
         );
     },
 

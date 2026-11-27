@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  Login page
+ *  Sign-in page
  * ============================================================== */
 require __DIR__ . '/../app/bootstrap.php';
 
@@ -45,11 +45,11 @@ if (is_post()) {
 }
 
 $attemptsLeft = login_attempts_left();
-$page_title   = 'Login';
+$page_title   = 'Sign in';
 
 require __DIR__ . '/../app/layout/auth_header.php';
 ?>
-          <!-- Login -->
+          <!-- Sign in -->
           <div class="card px-sm-6 px-0">
             <div class="card-body">
               <!-- Logo -->
@@ -60,9 +60,9 @@ require __DIR__ . '/../app/layout/auth_header.php';
                 </a>
               </div>
               <!-- /Logo -->
-              <h4 class="mb-1">Welcome to EcoWealth! &#x1f44b;</h4>
+              <h4 class="mb-1">Sign in to <?= e(APP_NAME) ?></h4>
               <p class="mb-6">
-                Please sign-in to your account and start the adventure
+                Manage your membership, orders and e-wallet.
               </p>
 
               <?= flash_render() ?>
@@ -132,7 +132,7 @@ require __DIR__ . '/../app/layout/auth_header.php';
                       value="1"
                     />
                     <label class="form-check-label" for="remember-me">
-                      Remember Me
+                      Remember me
                     </label>
                   </div>
                   <p class="small text-body-secondary mt-3 mb-0">
@@ -141,17 +141,17 @@ require __DIR__ . '/../app/layout/auth_header.php';
                 </div>
                 <div class="mb-6">
                   <button class="btn btn-primary d-grid w-100" type="submit" <?= $attemptsLeft <= 0 ? 'disabled' : '' ?>>
-                    Login
+                    Sign in
                   </button>
                 </div>
               </form>
               <p class="text-center">
-                <span>New on our platform?</span>
+                <span>New to <?= e(APP_NAME) ?>?</span>
                 <a href="<?= e(url('register')) ?>">
                   <span>Create an account</span>
                 </a>
               </p>
             </div>
           </div>
-          <!-- /Login -->
+          <!-- /Sign in -->
 <?php require __DIR__ . '/../app/layout/auth_footer.php'; ?>

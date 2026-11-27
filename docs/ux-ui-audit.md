@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-32, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-33, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -365,6 +365,8 @@ Evidence in user-visible labels:
 **Evidence:** `public/login.php:64-67` — "Please sign-in to your account and start the adventure"; "Remember Me" is title-cased; the heading is an emoji wave.
 **Impact:** the tone does not match the operational vocabulary of the rest of the product ("Sign in to manage your membership, orders and e-wallet").
 **Fix:** rewrite in the product's voice; sentence-case "Remember me".
+
+**Status:** Fixed — the sign-in screen now reads in the product's voice: the heading is **Sign in to EcoWealth** (was "Welcome to EcoWealth! 👋"), the description is **Manage your membership, orders and e-wallet.** (was "Please sign-in to your account and start the adventure"), the remember option is sentence-cased **Remember me** (was "Remember Me"), the submit button reads **Sign in** (was "Login"), the document title is **Sign in**, and the footer asks **New to EcoWealth?** instead of "New on our platform?". The heading and footer print the configured `APP_NAME`, so the page follows a renamed site. `ViewTest`'s new `UX-33` case rejects every retired string and pins the heading, description, checkbox, footer and button; its `UX-30` case now reads the brand from the new heading. `php -l` passes on `public/login.php` and `tests/Cases/ViewTest.php`, and the `UX-33` and `UX-30` cases pass on 27 November 2026. No browser pass was made.
 
 ---
 
