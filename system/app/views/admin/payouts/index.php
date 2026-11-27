@@ -90,7 +90,7 @@ $live = $live ?? [
                     />
                     <input type="date" name="from" class="form-control" value="<?= e($filters['from']) ?>" aria-label="From date" />
                     <input type="date" name="to" class="form-control" value="<?= e($filters['to']) ?>" aria-label="To date" />
-                    <button type="submit" class="btn btn-label-primary">Filter</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($filters['q'] !== '' || $filters['from'] !== '' || $filters['to'] !== ''): ?>
                     <a href="<?= e($queue_url . '?status=' . rawurlencode($tab)) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>

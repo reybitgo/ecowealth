@@ -71,7 +71,7 @@ $hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !==
                       <option value="floating" <?= $placement === 'floating' ? 'selected' : '' ?>>Floating nodes</option>
                       <option value="no-node" <?= $placement === 'no-node' ? 'selected' : '' ?>>No binary node</option>
                     </select>
-                    <button type="submit" class="btn btn-label-primary">Filter</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                     <a href="<?= e(url('admin/members')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>

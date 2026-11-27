@@ -82,7 +82,7 @@ $live = $live ?? [
                       <option value="<?= e($value) ?>" <?= $method === $value ? 'selected' : '' ?>><?= e($label) ?></option>
 <?php endforeach; ?>
                     </select>
-                    <button type="submit" class="btn btn-label-primary">Filter</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                     <a href="<?= e(url('admin/activations')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>

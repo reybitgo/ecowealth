@@ -54,7 +54,7 @@ $live = $live ?? [
                         placeholder="Search products…"
                         aria-label="Search products"
                       />
-                      <button type="submit" class="btn btn-primary">Search</button>
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== ''): ?>
                       <a href="<?= e(url('shop')) ?>" class="btn btn-label-secondary" aria-label="Clear search">
                         <i class="icon-base bx bx-x"></i>

@@ -72,7 +72,7 @@ $live = $live ?? [
                       <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>Binary on</option>
                       <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Binary off</option>
                     </select>
-                    <button type="submit" class="btn btn-label-primary">Filter</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                     <a href="<?= e(url('admin/packages')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>

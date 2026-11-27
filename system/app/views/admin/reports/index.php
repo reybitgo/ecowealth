@@ -118,7 +118,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                     </div>
                     <div class="d-flex align-items-center gap-2">
                       <button type="submit" class="btn btn-primary">
-                        <i class="icon-base bx bx-filter-alt me-1"></i> Apply window
+                        <i class="icon-base bx bx-filter-alt me-1"></i> Apply
                       </button>
                       <a href="<?= e(url('admin/reports')) ?>" class="btn btn-label-secondary">Last 30 days</a>
                     </div>

@@ -113,7 +113,7 @@ $live = $live ?? [
                       <option value="<?= e($value) ?>" <?= $status === $value ? 'selected' : '' ?>><?= e($label) ?></option>
 <?php endforeach; ?>
                     </select>
-                    <button type="submit" class="btn btn-label-primary">Filter</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== '' || $funded !== '' || $status !== ''): ?>
                     <a href="<?= e(url('admin/wallets?tab=members')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>
@@ -163,7 +163,7 @@ $live = $live ?? [
                     />
                     <input type="date" name="from" class="form-control" value="<?= e($transfer_filters['from']) ?>" aria-label="From date" />
                     <input type="date" name="to" class="form-control" value="<?= e($transfer_filters['to']) ?>" aria-label="To date" />
-                    <button type="submit" class="btn btn-label-primary">Filter</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== '' || $transfer_filters['from'] !== '' || $transfer_filters['to'] !== ''): ?>
                     <a href="<?= e(url('admin/wallets?tab=transfers')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>
@@ -208,7 +208,7 @@ $live = $live ?? [
                       placeholder="Member, admin or note…"
                       aria-label="Search top-ups"
                     />
-                    <button type="submit" class="btn btn-label-primary">Search</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== ''): ?>
                     <a href="<?= e(url('admin/wallets?tab=topups')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>

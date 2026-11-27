@@ -218,7 +218,7 @@ $live = $live ?? [
                         </select>
                       </div>
                       <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary flex-grow-1">Apply filters</button>
+                        <button type="submit" class="btn btn-primary flex-grow-1">Filter</button>
 <?php if ($hasFilters): ?>
                         <a href="<?= e(url('admin/codes')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>
