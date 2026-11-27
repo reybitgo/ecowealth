@@ -660,6 +660,34 @@ return [
         );
     },
 
+    'UX-37 the quick-view modal is named by its title' => function (): void {
+        $root    = dirname(__DIR__, 2);
+        $catalog = (string) file_get_contents($root . '/app/views/shop/catalog.php');
+
+        /* A dialog without a name is announced as a generic "dialog". The
+         * modal names itself with the product title the script fills in. */
+        assert_same(
+            1,
+            preg_match(
+                '/<div class="modal fade" id="productQuickView" tabindex="-1" aria-labelledby="quickViewTitle" aria-hidden="true">/',
+                $catalog
+            ),
+            'the quick-view modal is labelled by its title'
+        );
+
+        assert_same(
+            1,
+            preg_match('/<h5 class="modal-title" id="quickViewTitle">/', $catalog),
+            'the label target is the modal title'
+        );
+
+        assert_contains(
+            "document.getElementById('quickViewTitle').textContent = item.name;",
+            $catalog,
+            'the title names the product that was opened'
+        );
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',

@@ -82,7 +82,7 @@ $live = $live ?? [
             </div>
 
             <!-- Quick view: the card keeps its detail link, the modal is progressive enhancement. -->
-            <div class="modal fade" id="productQuickView" tabindex="-1" aria-hidden="true">
+            <div class="modal fade" id="productQuickView" tabindex="-1" aria-labelledby="quickViewTitle" aria-hidden="true">
               <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
                   <div class="modal-header">

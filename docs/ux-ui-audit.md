@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-36, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-37, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -400,6 +400,8 @@ The browser pass the same day (Laragon Apache build at `http://localhost/ecoweal
 **Evidence:** `shop/catalog.php` — `#productQuickView` has `.modal-title` but no `aria-labelledby`, and `aria-hidden="true"` is the only state attribute. (Bootstrap moves focus, so this is a naming/announcement gap, not a focus trap.)
 **Impact:** screen readers announce a generic "dialog" without the product name.
 **Fix:** add `aria-labelledby="quickViewTitle"` and keep the title updated (the script already sets its text).
+
+**Status:** Fixed — the catalogue's `#productQuickView` dialog now carries `aria-labelledby="quickViewTitle"`, pointing at the modal title the open handler already rewrites to the product name, so assistive technology announces the product rather than a generic dialog. `ViewTest`'s new `UX-37` case requires the labelled modal, the matching title id and the script line that keeps the title in step; `php -l` passes on the view and the test, and the `UX-37` case plus the `ShopLiveTest` catalogue cases pass on 27 November 2026; no browser pass was made.
 
 ### UX-38 — Small icon-only controls below touch-target guidance (Low)
 
