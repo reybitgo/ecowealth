@@ -84,14 +84,6 @@ return [
                 ],
             ],
             [
-                'label' => 'Membership',
-                'items' => [
-                    ['key' => 'admin.membership', 'label' => 'My membership', 'path' => 'membership', 'icon' => 'bx-medal', 'guard' => 'admin', 'phase' => 9],
-                    ['key' => 'admin.register', 'label' => 'Register', 'path' => 'register', 'icon' => 'bx-user-plus', 'guard' => 'admin', 'phase' => 9],
-                    ['key' => 'admin.genealogy', 'label' => 'My genealogy', 'path' => 'genealogy', 'icon' => 'bx-git-branch', 'guard' => 'admin', 'phase' => 9],
-                ],
-            ],
-            [
                 'label' => 'Commerce',
                 'items' => [
                     ['key' => 'admin.orders', 'label' => 'Orders', 'path' => 'admin/orders', 'icon' => 'bx-receipt', 'guard' => 'admin', 'phase' => 6],
@@ -105,16 +97,9 @@ return [
                 'items' => [
                     ['key' => 'admin.commissions', 'label' => 'Commissions', 'path' => 'admin/commissions', 'icon' => 'bx-line-chart', 'guard' => 'admin', 'phase' => 10],
                     ['key' => 'admin.wallets', 'label' => 'E-wallet monitor', 'path' => 'admin/wallets', 'icon' => 'bx-wallet', 'guard' => 'admin', 'phase' => 5],
-                    /* Admins may open their own statement; the page lives at
-                     * /wallet and renders inside the back-office layout for
-                     * them (same pattern as admin.cart, Phase 4). */
-                    ['key' => 'admin.wallet', 'label' => 'My e-wallet', 'path' => 'wallet', 'icon' => 'bx-credit-card', 'guard' => 'admin', 'phase' => 5],
-                    ['key' => 'admin.transfer', 'label' => 'Send funds', 'path' => 'wallet/transfer', 'icon' => 'bx-paper-plane', 'guard' => 'admin', 'phase' => 12],
+                    /* The queue only: the admin's own withdrawals live in the
+                     * My account section below, never beside this one. */
                     ['key' => 'admin.payouts', 'label' => 'Payouts', 'path' => 'admin/payouts', 'icon' => 'bx-money-withdraw', 'guard' => 'admin', 'phase' => 13],
-                    /* Admins may withdraw their own earnings too; the member
-                     * page renders inside the back-office layout for them
-                     * (same pattern as admin.wallet / admin.transfer). */
-                    ['key' => 'admin.my_payouts', 'label' => 'My payouts', 'path' => 'payouts', 'icon' => 'bx-credit-card-front', 'guard' => 'admin', 'phase' => 13],
                     ['key' => 'admin.reports', 'label' => 'Reports', 'path' => 'admin/reports', 'icon' => 'bx-bar-chart-alt-2', 'guard' => 'admin', 'phase' => 15],
                 ],
             ],
@@ -124,10 +109,32 @@ return [
                     ['key' => 'admin.settings', 'label' => 'Settings', 'path' => 'admin/settings', 'icon' => 'bx-cog', 'guard' => 'admin', 'phase' => 7],
                     ['key' => 'admin.audit', 'label' => 'Audit log', 'path' => 'admin/audit', 'icon' => 'bx-list-check', 'guard' => 'admin', 'phase' => 15],
                     ['key' => 'admin.slogin', 'label' => 'S-Login console', 'path' => 'slogin', 'icon' => 'bx-shield-quarter', 'guard' => 'superadmin', 'phase' => 14],
+                ],
+            ],
+            /* Personal destinations close the menu, apart from the operational
+             * sections above (UX-27): an administrator's own wallet, payouts,
+             * membership and profile never read as back-office screens. */
+            [
+                'label' => 'My account',
+                'items' => [
                     /* The top-bar identity row opens this page; admins get the
                      * back-office layout (same pattern as admin.cart / admin.wallet). */
                     ['key' => 'admin.profile', 'label' => 'My profile', 'path' => 'profile', 'icon' => 'bx-user-circle', 'guard' => 'admin', 'phase' => 6],
                     ['key' => 'admin.password', 'label' => 'Change password', 'path' => 'profile/password', 'icon' => 'bx-lock-alt', 'guard' => 'admin', 'phase' => 1],
+                    /* Admins may open their own statement; the page lives at
+                     * /wallet and renders inside the back-office layout for
+                     * them (same pattern as admin.cart, Phase 4). */
+                    ['key' => 'admin.wallet', 'label' => 'My e-wallet', 'path' => 'wallet', 'icon' => 'bx-credit-card', 'guard' => 'admin', 'phase' => 5],
+                    ['key' => 'admin.transfer', 'label' => 'Send funds', 'path' => 'wallet/transfer', 'icon' => 'bx-paper-plane', 'guard' => 'admin', 'phase' => 12],
+                    /* Admins may withdraw their own earnings too; the member
+                     * page renders inside the back-office layout for them
+                     * (same pattern as admin.wallet / admin.transfer). */
+                    ['key' => 'admin.my_payouts', 'label' => 'My payouts', 'path' => 'payouts', 'icon' => 'bx-credit-card-front', 'guard' => 'admin', 'phase' => 13],
+                    ['key' => 'admin.membership', 'label' => 'My membership', 'path' => 'membership', 'icon' => 'bx-medal', 'guard' => 'admin', 'phase' => 9],
+                    /* Registration is a member-portal flow (standalone page), so
+                     * it closes the personal group rather than opening Commerce. */
+                    ['key' => 'admin.register', 'label' => 'Register', 'path' => 'register', 'icon' => 'bx-user-plus', 'guard' => 'admin', 'phase' => 9],
+                    ['key' => 'admin.genealogy', 'label' => 'My genealogy', 'path' => 'genealogy', 'icon' => 'bx-git-branch', 'guard' => 'admin', 'phase' => 9],
                     ['key' => 'logout', 'label' => 'Sign out', 'path' => 'logout', 'icon' => 'bx-power-off', 'guard' => 'member', 'type' => 'post'],
                 ],
             ],

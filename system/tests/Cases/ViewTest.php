@@ -106,7 +106,7 @@ return [
         assert_contains('Members', $html);
         assert_contains('Activations', $html);
         assert_contains('href="' . url('admin/members') . '"', $html);
-        assert_contains('<div>Register</div>', $html, 'admins get a Register entry under Membership');
+        assert_contains('<div>Register</div>', $html, 'admins may register a new member');
         assert_contains('href="' . url('register') . '"', $html);
 
         /* The codes item is short ("Codes") so it never truncates. */
@@ -814,6 +814,84 @@ return [
         assert_contains('New member', $loud);
         assert_contains('New order', $loud);
         assert_not_contains('0 new', $loud, 'a populated bell never claims zero');
+    },
+
+    'UX-27 the admin sidebar separates personal destinations from the back office' => function () use ($render, $adminStats): void {
+        test_signed_in_as(test_user('ux27_admin', 'admin'));
+
+        $html = $render('admin', 'admin/dashboard', ['stats' => $adminStats, 'recent' => []]);
+
+        $start = strpos($html, '<ul class="menu-inner py-1">');
+        $end   = $start === false ? false : strpos($html, '</ul>', $start);
+
+        assert_true($start !== false && $end !== false, 'the back-office sidebar renders');
+
+        $sidebar = substr($html, (int) $start, (int) $end - (int) $start);
+
+        /* Split the menu into its labelled sections, in render order. */
+        preg_match_all(
+            '/<span class="menu-header-text">([^<]+)<\/span>([\s\S]*?)(?=<span class="menu-header-text">|$)/',
+            $sidebar,
+            $sections,
+            PREG_SET_ORDER
+        );
+
+        $menu = [];
+
+        foreach ($sections as $section) {
+            preg_match_all('/<div>([^<]+)<\/div>/', $section[2], $items);
+            $menu[trim($section[1])] = $items[1];
+        }
+
+        /* Operational sections first; the admin's own destinations last. */
+        assert_same(
+            ['Overview', 'Catalogue', 'Commerce', 'Finance', 'System', 'My account'],
+            array_keys($menu),
+            'the back-office sections come first and one personal section closes the menu'
+        );
+        assert_true(!array_key_exists('Membership', $menu), 'no Membership section mixes personal and operational entries');
+
+        /* "Payouts" is the queue; the admin's own withdrawals live elsewhere. */
+        assert_same(
+            ['Commissions', 'E-wallet monitor', 'Payouts', 'Reports'],
+            $menu['Finance'] ?? [],
+            'Finance holds only the operational money screens'
+        );
+        assert_same(
+            ['Settings', 'Audit log'],
+            $menu['System'] ?? [],
+            'System holds only back-office tools'
+        );
+
+        $personal = [
+            'My profile',
+            'Change password',
+            'My e-wallet',
+            'Send funds',
+            'My payouts',
+            'My membership',
+            'Register',
+            'My genealogy',
+            'Sign out',
+        ];
+
+        assert_same($personal, $menu['My account'] ?? [], 'My account lists every personal destination');
+
+        $offenders = [];
+
+        foreach ($menu as $label => $items) {
+            if ($label === 'My account') {
+                continue;
+            }
+
+            foreach ($personal as $item) {
+                if (in_array($item, $items, true)) {
+                    $offenders[] = $label . ' still lists ' . $item;
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'no operational section carries a personal destination');
     },
 
     'Escaping is applied everywhere user text is printed' => function (): void {
