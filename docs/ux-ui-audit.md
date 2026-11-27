@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-39 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-40 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -434,6 +434,7 @@ The pass also caught an unrelated phone-width bug on `/admin/members`: a card-fo
 ### UX-40 — Internal phase vocabulary appears in user-facing copy (process follow-up; fixes in UX-04, UX-05, UX-06)
 
 Three separate screens show build-phase numbers to end users: the product page, the admin member binary panel, and Settings. Treat this as one content-governance issue rather than three copy fixes: add a lint/review rule that rejects `Phase \d+` in `app/views/`.
+**Status:** Fixed — the rule is `ViewTest`'s `UX-40` case. It strips the PHP block and line comments where a template cites the plan, then fails on a phase number anywhere else in `app/views` or `app/layout`; it also self-checks that copy such as `<p>Checkout opens in Phase 6.</p>` is caught while a docblock that names `Phase 22G-S3` is not. The seven phase numbers that were left in HTML comments rather than rendered copy now name the feature alone (`member/dashboard.php`, `member/genealogy.php`, `app/layout/app_footer.php`). `php -l` and the `UX-40` case pass on 27 November 2026. No user-visible copy changed: UX-04, UX-05 and UX-06 had already removed the three screens' phase text.
 
 ### UX-41 — `flash_render()` is called inside page templates as well as in the layout (Low)
 

@@ -1220,6 +1220,63 @@ return [
         );
     },
 
+    'UX-40 templates never print internal build-phase vocabulary' => function (): void {
+        /* The rule: a build-phase number belongs to the plan and to a
+         * developer comment, never to the page. Three screens leaked one
+         * (UX-04, UX-05, UX-06); this sweep keeps the copy from drifting
+         * back. */
+        $offendersIn = static function (string $source): array {
+            $code = '';
+
+            foreach (token_get_all($source) as $token) {
+                /* Block and line comments are where a template cites the
+                 * plan on purpose; they never reach the screen. */
+                if (is_array($token) && ($token[0] === T_COMMENT || $token[0] === T_DOC_COMMENT)) {
+                    continue;
+                }
+
+                $code .= is_array($token) ? $token[1] : $token;
+            }
+
+            preg_match_all('/\bPhase\b\s*[-–—:]?\s*\d[A-Za-z0-9-]*/i', $code, $matches);
+
+            return $matches[0];
+        };
+
+        /* Prove the rule reads the copy and ignores the plan references a
+         * developer comment legitimately carries. */
+        assert_same(['Phase 6'], $offendersIn('<p>Checkout opens in Phase 6.</p>'), 'phase copy in a text node is caught');
+        assert_same(['Phase 22G-S3'], $offendersIn('<p>Phase 22G-S3</p>'), 'a sub-gate number is caught too');
+        assert_same([], $offendersIn('<?php /* Phase 22G-S3: the explorer paint. */ ?><p>Tree</p>'), 'a block comment may cite the plan');
+        assert_same([], $offendersIn("<?php\n// Phase 24 extends this.\n?><p>Tree</p>"), 'a line comment may cite the plan');
+
+        $root      = dirname(__DIR__, 2);
+        $offenders = [];
+        $files     = 0;
+
+        foreach (['/app/views', '/app/layout'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root . $directory)
+            );
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                $files++;
+                $name = str_replace($root . '/', '', $file->getPathname());
+
+                foreach ($offendersIn((string) file_get_contents($file->getPathname())) as $hit) {
+                    $offenders[] = $name . ': ' . $hit;
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'no template prints a build-phase number');
+        assert_true($files >= 300, 'the sweep reads the whole view tree');
+    },
+
     'UX-25 the notification bell only renders when it has something to show' => function () use ($render): void {
         test_signed_in_as(test_user('ux25_member'));
 

@@ -77,7 +77,7 @@ $live = $live ?? [
               <?= flash_render() ?>
 
 <?php if ($view === 'binary'): ?>
-                <!-- ============================ Binary tree (Phase 22G-S2) ============================ -->
+                <!-- ============================ Binary tree ============================ -->
                 <?php
                 $tree       = (array) (($binary_root['tree'] ?? null));
                 $rootId     = (int) ($binary_root['root'] ?? $binary_root_id);
@@ -121,7 +121,7 @@ if ($binary_unavailable === '') {
 
 <?php if ($binary_unavailable === ''): ?>
 
-                <!-- Controls toolbar (Phase 22G-S3) — plain links/buttons work without JS;
+                <!-- Controls toolbar — plain links/buttons work without JS;
                  the explorer script enhances them. -->
                 <div class="binary-tree-controls card mb-3">
                   <div class="card-body py-3">
@@ -207,7 +207,7 @@ if ($binary_unavailable === '') {
                          JSON must be escaped for the script context, not with e(). -->
                     <script type="application/json" id="binaryTreeSeed"><?= json_encode($binary_root, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
 
-                    <!-- SVG explorer (d3, Phase 22G-S3). Hidden until d3 loads; the list stays otherwise. -->
+                    <!-- SVG explorer (d3). Hidden until d3 loads; the list stays otherwise. -->
                     <div id="binaryTreeSvgWrap" class="binary-tree-svg-wrap" style="display:none" aria-hidden="true"></div>
 
                     <!-- No-JS semantic list: usable without d3 or JavaScript. -->

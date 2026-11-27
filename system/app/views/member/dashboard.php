@@ -129,13 +129,13 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
     'pending_repeat' => $pending_repeat ?? null,
 ]) ?>
 
-              <!-- Royalty (Phase 19E) -->
+              <!-- Royalty -->
 <?= View::capture('member/dashboard/_royalty', ['royalty' => $royalty ?? null]) ?>
 
-              <!-- Team Harvest (Phase 20F) -->
+              <!-- Team Harvest -->
 <?= View::capture('member/dashboard/_team_harvest', ['team_harvest' => $team_harvest ?? null]) ?>
 
-              <!-- General Harvest (Phase 21F) -->
+              <!-- General Harvest -->
 <?= View::capture('member/dashboard/_general_harvest', ['general_harvest' => $general_harvest ?? null]) ?>
 
 <?= View::capture('member/dashboard/_binary', ['binary' => $binary ?? null]) ?>

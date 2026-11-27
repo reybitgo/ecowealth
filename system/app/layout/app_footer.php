@@ -71,7 +71,7 @@
       data-publish="<?= e($live_json) ?>"
       data-channel="ecowealth:live:<?= e(trim(base_url(), '/')) ?>"
     ></div>
-    <!-- Toast host + cart behaviour (Phase 4) -->
+    <!-- Toast host + cart behaviour -->
     <div
       id="toastContainer"
       class="toast-container position-fixed end-0 p-3"
