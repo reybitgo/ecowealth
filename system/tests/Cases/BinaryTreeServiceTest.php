@@ -366,7 +366,7 @@ return [
         $payload = $service->subtree($juanId, 3, $juanId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $juan,
             'view'        => 'binary',
@@ -383,8 +383,9 @@ return [
             ],
         ]);
 
-        /* Binary header and branding. */
-        assert_contains('Binary Tree', $html);
+        /* UX-28: the binary view shares the one Genealogy page header. */
+        assert_contains('<h4 class="mb-1">Genealogy</h4>', $html);
+        assert_not_contains('<h4 class="mb-1">Binary Tree</h4>', $html);
         assert_contains('Your placement tree', $html);
 
         /* Server-rendered seed JSON. A script block is raw text: escaping it
@@ -432,7 +433,7 @@ return [
         $payload = $service->subtree($juanId, 3, $juanId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $juan,
             'view'        => 'binary',
@@ -472,7 +473,7 @@ return [
         $payload = $service->subtree($juanId, 3, $juanId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $juan,
             'view'        => 'binary',
@@ -504,7 +505,7 @@ return [
         $payload = $service->subtree($juanId, 3, $juanId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $juan,
             'view'        => 'binary',
@@ -632,7 +633,7 @@ return [
         $payload = $service->subtree($juanId, 3, $juanId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $juan,
             'view'        => 'binary',
@@ -653,8 +654,79 @@ return [
         assert_same(1, preg_match('/class="nav-link active"[^>]*>[\s\S]*?Binary tree/', $tabs), 'the binary view is current');
         assert_same(1, substr_count($tabs, 'aria-current="page"'), 'exactly one view is current');
 
-        $heading = strpos($html, '<h4 class="mb-1">Binary Tree</h4>');
+        $heading = strpos($html, '<h4 class="mb-1">Genealogy</h4>');
         assert_true($heading !== false && strpos($html, 'view-tabs') > $heading, 'the switcher follows the page heading');
+    },
+
+    /* ---------- UX-28: one page header and control chrome ---------- */
+
+    'UX-28 both genealogy views share one page header and control chrome' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+        $juanId = (int) $juan['id'];
+
+        $sponsors = new SponsorService();
+        $team     = $sponsors->downline($juanId);
+
+        $byLevel = [];
+        foreach ($team as $row) {
+            $byLevel[(int) $row['level']][] = $row;
+        }
+
+        $teamLevels = $byLevel;
+        $direct     = $byLevel[1] ?? [];
+        unset($byLevel[1]);
+
+        $sponsorHtml = $renderView('member', 'member/genealogy', [
+            'page_title'    => 'Genealogy',
+            'current_nav'   => 'genealogy',
+            'member'        => $juan,
+            'team_levels'   => $teamLevels,
+            'direct'        => $direct,
+            'recruits_pager' => Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE),
+            'deeper'        => $byLevel,
+            'team_count'    => count($team),
+            'levels_used'   => $byLevel === [] ? 0 : max(array_keys($byLevel)),
+            'referral_code' => (string) ($juan['referral_code'] ?? ''),
+            'referral_link' => absolute_url('register?ref=' . (string) ($juan['referral_code'] ?? '')),
+            'live'          => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+
+        $binaryHtml = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Genealogy',
+            'current_nav' => 'genealogy',
+            'member'      => $juan,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($juanId, 3, $juanId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $juanId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        foreach (['sponsor' => $sponsorHtml, 'binary' => $binaryHtml] as $view => $html) {
+            assert_same(1, substr_count($html, '<h4 class="mb-1">Genealogy</h4>'), $view . ' view uses the one page title');
+            assert_not_contains('<h4 class="mb-1">Binary Tree</h4>', $html, $view . ' view has no second heading');
+            assert_same(1, substr_count($html, 'class="nav nav-pills view-tabs"'), $view . ' view offers the switcher');
+            assert_contains('Genealogy |', $html, $view . ' view sets the document title');
+        }
+
+        /* The binary-only depth links sit in the toolbar card, below the header. */
+        $header    = strpos($binaryHtml, '<h4 class="mb-1">Genealogy</h4>');
+        $toolbar   = strpos($binaryHtml, 'binary-tree-controls card');
+        $shallower = strpos($binaryHtml, 'title="Shallower view"');
+
+        assert_true($header !== false && $toolbar !== false && $shallower !== false);
+        assert_true($shallower > $header && $shallower > $toolbar, 'depth links live in the toolbar, not the page header');
+
+        /* Page actions speak the standard button language. */
+        assert_not_contains('btn-outline-secondary', $binaryHtml, 'the binary view has no outline buttons');
+        assert_contains('btn-label-secondary', $binaryHtml, 'the binary controls use the standard label buttons');
     },
 
     'P22G-T32 routes: no new route in this phase, guard is member' => function (): void {
@@ -738,7 +810,7 @@ return [
         $payload = $service->subtree($adminId, 3, $adminId, true);
 
         $html = $renderView('admin', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'admin.genealogy',
             'member'      => $admin,
             'view'        => 'binary',
@@ -777,7 +849,7 @@ return [
         $payload = $service->subtree($adminId, 3, $adminId, true);
 
         $html = $renderView('admin', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'admin.genealogy',
             'member'      => $admin,
             'view'        => 'binary',
@@ -810,7 +882,7 @@ return [
         $payload = $service->subtree($adminId, 3, $adminId, true);
 
         $html = $renderView('admin', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'admin.genealogy',
             'member'      => $admin,
             'view'        => 'binary',
@@ -847,7 +919,7 @@ return [
         $payload = $service->subtree($adminId, 3, $adminId, true);
 
         $html = $renderView('admin', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'admin.genealogy',
             'member'      => $admin,
             'view'        => 'binary',
@@ -895,7 +967,7 @@ return [
         $payload = $service->subtree($peterId, 3, $peterId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $peter,
             'view'        => 'binary',
@@ -947,7 +1019,7 @@ return [
         $payload = $service->subtree($peterId, 3, $peterId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $peter,
             'view'        => 'binary',
@@ -1222,7 +1294,7 @@ return [
         $payload = $service->subtree($peterId, 3, $peterId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $peter,
             'view'        => 'binary',
@@ -1324,7 +1396,7 @@ return [
         $payload = $service->subtree($juanId, 3, $juanId, false);
 
         $html = $renderView('member', 'member/genealogy', [
-            'page_title'  => 'Binary Tree',
+            'page_title'  => 'Genealogy',
             'current_nav' => 'genealogy',
             'member'      => $juan,
             'view'        => 'binary',

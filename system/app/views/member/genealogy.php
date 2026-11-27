@@ -97,6 +97,9 @@ $live = $live ?? [
                 }
                 ?>
 <?php
+/* UX-28: both genealogy views share the one page header and title. The
+ * binary-only controls live in the toolbar card below, not in the header,
+ * so switching views keeps the same heading, rhythm and button language. */
 $binaryDescription = ($isAdmin ? 'The placement tree' : 'Your placement tree')
     . ' — left and right legs, points and pairs. Server-rendered on first paint; works without JavaScript.';
 if ($binary_unavailable === '') {
@@ -106,25 +109,10 @@ if ($binary_unavailable === '') {
         . ($truncated ? ' · some branches hidden (expand to load more)' : '')
         . '</span>';
 }
-$binaryActions = '';
-if ($binary_unavailable === '') {
-    $binaryActions = '<div class="d-flex gap-2">'
-        . '<a href="' . url('genealogy?view=binary&depth=' . max(1, (int) $binary_depth - 1)) . '"'
-        . ' class="btn btn-sm btn-outline-secondary" title="Shallower view" aria-label="Shallower view">'
-        . '<i class="icon-base bx bx-chevron-up"></i></a>'
-        . '<a href="' . url('genealogy?view=binary&depth=' . min(BinaryTreeService::MAX_DEPTH, (int) $binary_depth + 1)) . '"'
-        . ' class="btn btn-sm btn-outline-secondary" title="Deeper view" aria-label="Deeper view">'
-        . '<i class="icon-base bx bx-chevron-down"></i></a>'
-        . '<a href="' . url('genealogy?view=binary&root=' . $rootId) . '"'
-        . ' class="btn btn-sm btn-outline-secondary" title="Reset view" aria-label="Reset view">'
-        . '<i class="icon-base bx bx-reset"></i></a>'
-        . '</div>';
-}
 ?>
 <?= View::partial('page_header', [
-    'title'       => 'Binary Tree',
+    'title'       => 'Genealogy',
     'description' => $binaryDescription,
-    'actions'     => $binaryActions,
 ]) ?>
 
                 <!-- View switcher (UX-07): the sponsor tree is the default, the binary
@@ -152,22 +140,36 @@ if ($binary_unavailable === '') {
                             </option>
                             <?php endforeach; ?>
                           </select>
-                          <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Go</button></noscript>
+                          <noscript><button type="submit" class="btn btn-sm btn-label-secondary">Go</button></noscript>
                         </form>
                       </div>
                       <?php endif; ?>
                       <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="fit" title="Fit tree to screen" aria-label="Fit tree to screen"><i class="icon-base bx bx-fullscreen"></i> Fit</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="zoomin" title="Zoom in" aria-label="Zoom in"><i class="icon-base bx bx-search-alt"></i> Zoom in</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="zoomout" title="Zoom out" aria-label="Zoom out"><i class="icon-base bx bx-minus"></i> Zoom out</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="reset" title="Reset pan and zoom" aria-label="Reset pan and zoom"><i class="icon-base bx bx-reset"></i> Reset</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="fit" title="Fit tree to screen" aria-label="Fit tree to screen"><i class="icon-base bx bx-fullscreen"></i> Fit</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="zoomin" title="Zoom in" aria-label="Zoom in"><i class="icon-base bx bx-search-alt"></i> Zoom in</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="zoomout" title="Zoom out" aria-label="Zoom out"><i class="icon-base bx bx-minus"></i> Zoom out</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="reset" title="Reset pan and zoom" aria-label="Reset pan and zoom"><i class="icon-base bx bx-reset"></i> Reset</button>
+                      </div>
+                      <div class="d-flex gap-2 binary-tree-depth-links">
+                        <a href="<?= url('genealogy?view=binary&depth=' . max(1, (int) $binary_depth - 1)) ?>"
+                           class="btn btn-sm btn-label-secondary" title="Shallower view" aria-label="Shallower view">
+                          <i class="icon-base bx bx-chevron-up"></i>
+                        </a>
+                        <a href="<?= url('genealogy?view=binary&depth=' . min(BinaryTreeService::MAX_DEPTH, (int) $binary_depth + 1)) ?>"
+                           class="btn btn-sm btn-label-secondary" title="Deeper view" aria-label="Deeper view">
+                          <i class="icon-base bx bx-chevron-down"></i>
+                        </a>
+                        <a href="<?= url('genealogy?view=binary&root=' . $rootId) ?>"
+                           class="btn btn-sm btn-label-secondary" title="Reset view" aria-label="Reset view">
+                          <i class="icon-base bx bx-reset"></i>
+                        </a>
                       </div>
                       <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="expandall" title="Expand all branches" aria-label="Expand all branches"><i class="icon-base bx bx-expand-alt"></i> Expand all</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="collapseall" title="Collapse all branches" aria-label="Collapse all branches"><i class="icon-base bx bx-collapse-alt"></i> Collapse all</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="orientation" title="Toggle tree orientation" aria-label="Toggle tree orientation"><i class="icon-base bx bx-rotate-right"></i> Orientation</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="compact" title="Toggle compact mode" aria-label="Toggle compact mode"><i class="icon-base bx bx-layer"></i> Compact</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="backtome" title="Center on your node" aria-label="Center on your node"><i class="icon-base bx bx-user"></i> Back to me</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="expandall" title="Expand all branches" aria-label="Expand all branches"><i class="icon-base bx bx-expand-alt"></i> Expand all</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="collapseall" title="Collapse all branches" aria-label="Collapse all branches"><i class="icon-base bx bx-collapse-alt"></i> Collapse all</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="orientation" title="Toggle tree orientation" aria-label="Toggle tree orientation"><i class="icon-base bx bx-rotate-right"></i> Orientation</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="compact" title="Toggle compact mode" aria-label="Toggle compact mode"><i class="icon-base bx bx-layer"></i> Compact</button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" data-action="backtome" title="Center on your node" aria-label="Center on your node"><i class="icon-base bx bx-user"></i> Back to me</button>
                       </div>
                       <div class="binary-tree-depth-select-wrap ms-auto d-flex align-items-center gap-2">
                         <label class="form-label mb-0 small text-body-secondary" for="binaryTreeDepthSelect">Depth</label>
@@ -181,7 +183,7 @@ if ($binary_unavailable === '') {
                       </div>
                       <div class="binary-tree-search d-flex align-items-center">
                         <input type="search" class="form-control form-control-sm" id="binaryTreeSearchInput" placeholder="Search members…" aria-label="Search members in this tree" />
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="binaryTreeSearchClear" title="Clear search" aria-label="Clear search"><i class="icon-base bx bx-x"></i></button>
+                        <button type="button" class="btn btn-sm btn-label-secondary" id="binaryTreeSearchClear" title="Clear search" aria-label="Clear search"><i class="icon-base bx bx-x"></i></button>
                       </div>
                     </div>
                   </div>

@@ -33,7 +33,7 @@ $referral = (string) ($node['referral_code'] ?? '');
     <?php if ($free): ?>
     <a
         href="<?= url('register?sponsor=' . rawurlencode($username) . '&binary_position=' . $side . '&return=genealogy') ?>"
-        class="btn btn-sm btn-outline-secondary binary-tree-slot-add"
+        class="btn btn-sm btn-label-secondary binary-tree-slot-add"
         role="button"
         data-binary-modal-trigger
         data-binary-upline="<?= e($username) ?>"
@@ -47,7 +47,7 @@ $referral = (string) ($node['referral_code'] ?? '');
     <?php if ($referral !== ''): ?>
     <button
         type="button"
-        class="btn btn-sm btn-outline-secondary binary-tree-invite"
+        class="btn btn-sm btn-label-secondary binary-tree-invite"
         data-binary-invite="1"
         data-binary-upline="<?= e($username) ?>"
         data-referral-code="<?= e($referral) ?>"
@@ -59,13 +59,13 @@ $referral = (string) ($node['referral_code'] ?? '');
     <?php if ((bool) $is_admin): ?>
     <a
         href="<?= url('admin/members/' . $userId) ?>"
-        class="btn btn-sm btn-outline-secondary binary-tree-view-member"
+        class="btn btn-sm btn-label-secondary binary-tree-view-member"
         title="View member"
         aria-label="View member"
     ><i class="icon-base bx bx-user"></i></a>
     <a
         href="<?= url('admin/members/' . $userId) ?>"
-        class="btn btn-sm btn-outline-secondary binary-tree-move-placement"
+        class="btn btn-sm btn-label-secondary binary-tree-move-placement"
         title="Move placement"
         aria-label="Move placement"
     ><i class="icon-base bx bx-transfer"></i></a>
@@ -74,7 +74,7 @@ $referral = (string) ($node['referral_code'] ?? '');
     <?php if ($isYou && !$is_admin): ?>
     <a
         href="<?= url('dashboard') ?>"
-        class="btn btn-sm btn-outline-secondary binary-tree-view-earnings"
+        class="btn btn-sm btn-label-secondary binary-tree-view-earnings"
         title="Open your earnings"
         aria-label="Open your earnings"
     ><i class="icon-base bx bx-wallet"></i></a>

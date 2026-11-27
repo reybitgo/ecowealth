@@ -158,7 +158,7 @@ final class GenealogyController
             View::page($isAdmin ? 'admin' : 'member', 'member/genealogy', array_merge(
                 $this->genealogyContext($member),
                 [
-                    'page_title'  => 'Binary Tree',
+                    'page_title'  => 'Genealogy',
                     'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
                     /* commissions.css carries the view-tab pills shared with the
                      * earnings/commissions view switchers (UX-07). */
