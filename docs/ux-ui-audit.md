@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-18 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-19 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -234,6 +234,7 @@ No `.required` rule exists in the application's CSS (custom or vendor), so the r
 
 **Impact:** export is sometimes the most prominent button on the page and sometimes a quiet one; the same destination link changes weight between pages.
 **Fix:** define one hierarchy: primary = the page's main forward action; secondary (label) = exports, cross-links and utility navigation. Apply it consistently.
+**Status:** Fixed in `0f06c14` — every page-header export is now the quiet `btn-label-secondary` (Codes was `btn-label-primary`; Commissions, member earnings and Reports already were), and the member earnings "Open e-wallet" cross-link is `btn-label-primary` instead of `btn-primary`, matching the wallet and payout "Open statement" links and the dashboard's "View statement". `btn-primary` is left to each page's main forward action. `ViewTest` sweeps the four exports and pins the earnings link; the UX-19 case and the membership, order, package, payment, payout, product and report view suites pass on 27 November 2026; no browser pass was made.
 
 ---
 
