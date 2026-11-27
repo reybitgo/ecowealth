@@ -483,10 +483,14 @@
  * 390 px: the ten levels become two columns, then one. */
 .product-card-bonus {
   align-self: flex-start;
+  max-width: 100%;
   margin-bottom: 0.6rem;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+  /* The program name is long: wrap it inside a narrow card instead of
+   * letting Bootstrap's badge nowrap rule clip it at 375 px. */
+  white-space: normal;
 }
 
 .product-bonus-footer {
