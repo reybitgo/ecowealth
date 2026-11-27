@@ -39,11 +39,7 @@ $status = array_merge([
     'requires_active'    => true,
 ], $status ?? []);
 
-$monthLabel = static function (string $period): string {
-    $time = strtotime($period . '-01');
-
-    return $time === false ? $period : date('F Y', $time);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $currentLabel  = $monthLabel((string) $status['period']);
 $previousLabel = $monthLabel((string) $status['previous']);

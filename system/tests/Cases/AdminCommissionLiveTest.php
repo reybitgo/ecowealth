@@ -648,8 +648,8 @@ return [
             $data['periods']
         ));
         assert_contains('data-live-region="repeat-periods"', $card);
-        assert_contains('Oct 2026', $card);
-        assert_contains('Sep 2026', $card);
+        assert_contains(format_month('2026-10'), $card);
+        assert_contains(format_month('2026-09'), $card);
         assert_contains('15', $card);
         assert_contains('9', $card);
         assert_contains(money(2000.00), $card);

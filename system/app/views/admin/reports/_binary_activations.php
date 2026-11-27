@@ -60,7 +60,7 @@ $range = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => ''];
                         <td class="text-end text-nowrap small fw-semibold"><?= e(money((float) $row['amount'])) ?></td>
                         <td class="text-nowrap small"><?= e(ucfirst((string) $row['status'])) ?></td>
                         <td class="text-nowrap small">
-                          <?= $row['processed_at'] !== null ? e(date('M j, Y g:i A', (int) strtotime((string) $row['processed_at']))) : '—' ?>
+                          <?= $row['processed_at'] !== null ? e(format_datetime((string) $row['processed_at'])) : '—' ?>
                         </td>
                       </tr>
 <?php endforeach; ?>

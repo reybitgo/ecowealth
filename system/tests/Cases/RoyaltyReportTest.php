@@ -262,7 +262,7 @@ return [
         ]);
 
         assert_contains('data-live-region="report-royalty-periods"', $periodCard);
-        assert_contains(date('M Y', (int) strtotime($period . '-01 12:00:00')), $periodCard);
+        assert_contains(format_month($period), $periodCard);
         assert_contains(money(637500.0), $periodCard);
 
         /* The cards are on the page, in their own rows. */

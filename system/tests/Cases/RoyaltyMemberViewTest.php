@@ -771,8 +771,8 @@ return [
         assert_same(2, $data['pager']->total);
         assert_same(33300.0, (float) $data['stats']['paid_all_time'] + (float) $data['stats']['pending_total']);
 
-        assert_contains(date('F Y', (int) strtotime($prev . '-01')), $rows);
-        assert_contains(date('F Y', (int) strtotime($prior . '-01')), $rows);
+        assert_contains(format_month($prev), $rows);
+        assert_contains(format_month($prior), $rows);
         assert_contains('Supervisor', $rows);
         assert_contains(money(510000.0), $rows);
         assert_contains(money(60000.0), $rows);

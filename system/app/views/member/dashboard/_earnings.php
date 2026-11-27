@@ -40,9 +40,7 @@ $repeatEnabled = (bool) ($unilevel['enabled'] ?? false);
 $repeatShow    = $repeatOn && ($repeatEnabled || $repeatAwards > 0);
 
 $repeatPeriod = (string) ($repeatStatus['period'] ?? UnilevelCycle::periodOf());
-$repeatMonth  = strtotime($repeatPeriod . '-01') === false
-    ? $repeatPeriod
-    : date('F Y', (int) strtotime($repeatPeriod . '-01'));
+$repeatMonth  = format_month($repeatPeriod, $repeatPeriod);
 $repeatActive = (bool) ($repeatStatus['active'] ?? true);
 
 /* The escrow totals carry the next promised release; without one the

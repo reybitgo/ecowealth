@@ -77,7 +77,7 @@ $hasFilters = (string) $filters['type'] !== ''
                           <?php endif; ?>
                           <div class="small text-body-secondary commission-meta-mobile">
                             #<?= (int) $commission['activation_id'] ?>
-                            · <?= e(date('M j, Y', (int) strtotime((string) $commission['created_at']))) ?>
+                            · <?= e(format_date((string) $commission['created_at'])) ?>
                           </div>
                         </td>
                         <td>
@@ -117,8 +117,8 @@ $hasFilters = (string) $filters['type'] !== ''
                           <div class="small text-body-secondary"><?= e(payment_method_label((string) $commission['activation_method'])) ?></div>
                         </td>
                         <td class="text-nowrap commission-col-awarded">
-                          <div><?= e(date('M j, Y', (int) strtotime((string) $commission['created_at']))) ?></div>
-                          <div class="small text-body-secondary"><?= e(date('g:i A', (int) strtotime((string) $commission['created_at']))) ?></div>
+                          <div><?= e(format_date((string) $commission['created_at'])) ?></div>
+                          <div class="small text-body-secondary"><?= e(format_time((string) $commission['created_at'])) ?></div>
                         </td>
                         <td class="text-end">
                           <button

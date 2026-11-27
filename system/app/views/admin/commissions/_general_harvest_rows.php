@@ -65,7 +65,7 @@ $ledgerUrl = url('admin/commissions?ledger=general_harvest');
                         <td class="text-nowrap">
 <?php if ($credited !== ''): ?>
                           <div><?= e(format_date($credited)) ?></div>
-                          <div class="small text-body-secondary"><?= e(date('g:i A', (int) strtotime($credited))) ?></div>
+                          <div class="small text-body-secondary"><?= e(format_time($credited)) ?></div>
 <?php else: ?>
                           <span class="text-body-secondary small">—</span>
 <?php endif; ?>

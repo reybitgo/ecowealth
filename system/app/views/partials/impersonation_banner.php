@@ -22,7 +22,7 @@ if ($me === null) {
 
 $impExpires  = (int) ($_SESSION['imp_expires'] ?? 0);
 $impSuper    = (string) ($_SESSION['imp_created_by_username'] ?? '');
-$impExpiresText = $impExpires > 0 ? date('M j, Y g:i A', $impExpires) : '';
+$impExpiresText = $impExpires > 0 ? format_datetime($impExpires) : '';
 ?>
               <div class="alert alert-warning impersonation-banner d-flex flex-wrap align-items-center gap-3 mb-4" role="status" data-impersonation-banner>
                 <span class="avatar avatar-sm flex-shrink-0">

@@ -14,11 +14,7 @@ declare(strict_types=1);
 
 $periods = $periods ?? [];
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('M Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 ?>
               <div class="card mb-6" data-live-region="repeat-periods">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">

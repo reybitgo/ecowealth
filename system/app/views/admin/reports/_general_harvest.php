@@ -62,11 +62,7 @@ $pairs      = is_array($open['pairs'] ?? null) ? $open['pairs'] : [];
 
 $range = $range ?? ['label' => ''];
 
-$monthLabel = static function (string $month): string {
-    $ts = strtotime($month . '-01 12:00:00');
-
-    return $ts === false ? $month : date('M Y', $ts);
-};
+$monthLabel = static fn (string $month): string => format_month($month, $month);
 
 $ledgerUrl = url('admin/commissions?ledger=general_harvest');
 ?>

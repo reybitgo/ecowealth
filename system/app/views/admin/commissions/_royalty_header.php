@@ -20,11 +20,7 @@ $period        = (string) ($period ?? '');
 $period_status = $period_status ?? null;
 $preview_mode  = (bool) ($preview_mode ?? false);
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('F Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $stateLabel = $preview_mode
     ? 'Not closed yet — preview'

@@ -65,8 +65,8 @@ $hasFilters = (string) $filters['type'] !== ''
 ?>
                       <tr data-live-key="<?= $id ?>">
                         <td class="text-nowrap commission-col-date">
-                          <div><?= e(date('M j, Y', (int) strtotime((string) $commission['created_at']))) ?></div>
-                          <div class="small text-body-secondary"><?= e(date('g:i A', (int) strtotime((string) $commission['created_at']))) ?></div>
+                          <div><?= e(format_date((string) $commission['created_at'])) ?></div>
+                          <div class="small text-body-secondary"><?= e(format_time((string) $commission['created_at'])) ?></div>
                         </td>
                         <td class="commission-col-source">
                           <span class="fw-medium">@<?= e((string) $commission['source_username']) ?></span>
@@ -77,7 +77,7 @@ $hasFilters = (string) $filters['type'] !== ''
                             <?= e((string) $commission['package_name']) ?>
                             · <?= e(commission_type_label($type)) ?>
                             · <?= e(commission_level_label($level)) ?>
-                            · <?= e(date('M j, Y', (int) strtotime((string) $commission['created_at']))) ?>
+                            · <?= e(format_date((string) $commission['created_at'])) ?>
                           </div>
                         </td>
                         <td class="text-nowrap commission-col-package"><?= e((string) $commission['package_name']) ?></td>

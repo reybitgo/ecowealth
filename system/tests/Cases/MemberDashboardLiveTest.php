@@ -481,7 +481,7 @@ return [
         assert_contains('If this month closed now', $tile);
         assert_contains(money(18300.0), $tile);
         assert_contains('Paid all-time', $tile);
-        assert_contains(date('M Y', (int) strtotime($prev . '-01')), $tile, 'the last paid month');
+        assert_contains(format_month($prev), $tile, 'the last paid month');
         assert_contains('href="' . url('earnings?ledger=royalty') . '"', $tile);
 
         /* The page renders the same region, outside the KPI row. */

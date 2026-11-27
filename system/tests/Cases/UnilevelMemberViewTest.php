@@ -834,7 +834,7 @@ return [
         assert_contains('Repeat-purchase bonus', $tile);
         assert_contains(money(25), $tile);
         assert_contains('Active', $tile);
-        assert_contains('for ' . date('F Y', (int) strtotime(UnilevelCycle::periodOf() . '-01')), $tile);
+        assert_contains('for ' . format_month(UnilevelCycle::periodOf()), $tile);
         assert_contains('earnings?ledger=repeat', $tile);
         assert_not_contains('<form', $tile, 'the tile offers no action');
         assert_not_contains('<input', $tile);

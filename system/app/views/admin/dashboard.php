@@ -94,7 +94,7 @@ $roleTone = static fn (string $role): string => match ($role) {
                           <?= e(ucfirst((string) ($me['role'] ?? 'admin'))) ?>
                         </span>
                         <span class="text-body-secondary small">
-                          <i class="icon-base bx bx-calendar me-1"></i><?= e(date('D, M j, Y')) ?>
+                          <i class="icon-base bx bx-calendar me-1"></i><?= e(format_date('now')) ?>
                         </span>
                         <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                       </div>

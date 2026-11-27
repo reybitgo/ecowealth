@@ -67,8 +67,7 @@ $step = match ($nextRank) {
 $lastPaidLabel = '';
 
 if (is_array($lastPaid) && isset($lastPaid['period'])) {
-    $ts           = strtotime((string) $lastPaid['period'] . '-01 12:00:00');
-    $lastPaidLabel = $ts === false ? (string) $lastPaid['period'] : date('M Y', $ts);
+    $lastPaidLabel = format_month((string) $lastPaid['period'], (string) $lastPaid['period']);
 }
 ?>
               <div class="row g-6 mb-6" data-live-region="dashboard-royalty">

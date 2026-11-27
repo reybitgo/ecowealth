@@ -325,7 +325,7 @@ $hasCustomRange = $range['from'] !== $defaultRange['from'] || $range['to'] !== $
                   [
                       'sales' => [
                           'labels' => array_map(
-                              static fn (array $day): string => date('M j', strtotime((string) $day['day'] . ' 12:00:00')),
+                              static fn (array $day): string => format_day((string) $day['day']),
                               $sales_by_day
                           ),
                           'values' => array_map(static fn (array $day): float => (float) $day['amount'], $sales_by_day),

@@ -37,11 +37,7 @@ $stats = array_merge([
     'payments_enabled' => true,
 ], $stats ?? []);
 
-$monthLabel = static function (string $period): string {
-    $ts = $period === '' ? false : strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('M Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $thisPeriod = $stats['this_period'];
 $lastPaid   = $stats['last_paid'];

@@ -200,10 +200,9 @@ if ($isTeam) {
 
     $periodOptions = [['value' => '', 'label' => 'All months']];
     foreach ($periods as $periodKey) {
-        $ts = strtotime((string) $periodKey . '-01 12:00:00');
         $periodOptions[] = [
             'value' => (string) $periodKey,
-            'label' => $ts === false ? (string) $periodKey : date('F Y', $ts),
+            'label' => format_month((string) $periodKey, (string) $periodKey),
         ];
     }
 } elseif ($isRepeat) {

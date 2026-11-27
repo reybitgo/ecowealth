@@ -55,8 +55,8 @@ declare(strict_types=1);
 <?php endif; ?>
                             </td>
                             <td class="text-nowrap">
-                              <span class="member-meta"><?= e(date('M j, Y', (int) strtotime((string) $activation['created_at']))) ?></span>
-                              <div class="member-meta"><?= e(date('g:i A', (int) strtotime((string) $activation['created_at']))) ?></div>
+                              <span class="member-meta"><?= e(format_date((string) $activation['created_at'])) ?></span>
+                              <div class="member-meta"><?= e(format_time((string) $activation['created_at'])) ?></div>
                             </td>
                           </tr>
 <?php endforeach; ?>

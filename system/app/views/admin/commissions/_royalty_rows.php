@@ -42,11 +42,7 @@ $statusBadges = [
     'skipped' => ['Skipped', 'secondary'],
 ];
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('M Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 ?>
                     <tbody data-live-region="commission-royalty-rows">
 <?php if ($awards === []): ?>
@@ -151,7 +147,7 @@ $monthLabel = static function (string $period): string {
 <?php if (($award['credited_at'] ?? null) !== null && (string) $award['credited_at'] !== ''): ?>
                           <div><?= e(format_date((string) $award['credited_at'])) ?></div>
                           <div class="small text-body-secondary">
-                            <?= e(date('g:i A', (int) strtotime((string) $award['credited_at']))) ?>
+                            <?= e(format_time((string) $award['credited_at'])) ?>
                           </div>
 <?php else: ?>
                           <span class="text-body-secondary small">—</span>

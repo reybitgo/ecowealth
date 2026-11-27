@@ -93,7 +93,7 @@ foreach ($awards as $award) {
 }
 
 /** When a pending award is due: delivery (or completion) + its hold. */
-$dueAt = static function (array $award): ?string {
+$dueAt = static function (array $award): ?int {
     $delivered = $award['order_delivered_at'] ?? null;
     $completed = $award['order_completed_at'] ?? null;
     $base      = $delivered !== null && $delivered !== ''
@@ -108,7 +108,7 @@ $dueAt = static function (array $award): ?string {
 
     return $timestamp === false
         ? null
-        : date('Y-m-d H:i:s', $timestamp + max(0, (int) ($award['hold_days'] ?? 0)) * 86400);
+        : $timestamp + max(0, (int) ($award['hold_days'] ?? 0)) * 86400;
 };
 ?>
                   <div class="card mb-6 order-binary-card" data-live-region="order-binary">

@@ -83,7 +83,7 @@ $live = $live ?? [
                       <p class="text-body-secondary small mb-3"><?= e((string) $user['email']) ?></p>
                       <div class="d-flex justify-content-center gap-2">
                         <span class="badge bg-label-info"><?= e(ucfirst((string) $user['role'])) ?></span>
-                        <span class="badge bg-label-secondary">Member since <?= e(date('M Y', (int) strtotime((string) $user['created_at']))) ?></span>
+                        <span class="badge bg-label-secondary">Member since <?= e(format_month((string) $user['created_at'])) ?></span>
                       </div>
                     </div>
                   </div>

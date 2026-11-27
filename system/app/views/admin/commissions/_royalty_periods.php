@@ -20,11 +20,7 @@ $periods  = $periods ?? [];
 $selected = (string) ($selected ?? '');
 $open     = (string) ($open ?? '');
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('M Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $openLabel = $open === '' ? '' : $monthLabel($open);
 $openLink  = $open === '' ? '' : url('admin/commissions?ledger=royalty&period=' . rawurlencode($open));

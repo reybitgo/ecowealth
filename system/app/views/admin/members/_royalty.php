@@ -37,11 +37,7 @@ $statusBadges = [
     'skipped' => ['Not paid', 'secondary'],
 ];
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('M Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $ledgerUrl = url('admin/commissions?ledger=royalty&q=' . rawurlencode($username));
 ?>

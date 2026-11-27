@@ -31,7 +31,7 @@ $hasFilters = (string) $filters['level'] !== ''
     || (string) $filters['q'] !== '';
 
 /** When a pending award is due: delivery (or completion) + its hold. */
-$dueAt = static function (array $award): ?string {
+$dueAt = static function (array $award): ?int {
     $delivered = $award['order_delivered_at'] ?? null;
     $completed = $award['order_completed_at'] ?? null;
     $base      = $delivered !== null && $delivered !== ''
@@ -46,7 +46,7 @@ $dueAt = static function (array $award): ?string {
 
     return $timestamp === false
         ? null
-        : date('Y-m-d H:i:s', $timestamp + max(0, (int) ($award['hold_days'] ?? 0)) * 86400);
+        : $timestamp + max(0, (int) ($award['hold_days'] ?? 0)) * 86400;
 };
 ?>
                     <tbody data-live-region="repeat-rows">
@@ -104,7 +104,7 @@ $dueAt = static function (array $award): ?string {
                         </td>
                         <td>
                           <span class="fw-medium">@<?= e((string) $award['buyer_username']) ?></span>
-                          <div class="small text-body-secondary"><?= e(date('M j, Y', (int) strtotime((string) $award['paid_at']))) ?></div>
+                          <div class="small text-body-secondary"><?= e(format_date((string) $award['paid_at'])) ?></div>
                         </td>
                         <td>
                           <?= e((string) $award['product_name']) ?>
@@ -151,8 +151,8 @@ $dueAt = static function (array $award): ?string {
                           <div class="small"><?= status_badge((string) ($award['order_status'] ?? '')) ?></div>
                         </td>
                         <td class="text-nowrap">
-                          <div><?= e(date('M j, Y', (int) strtotime((string) $award['created_at']))) ?></div>
-                          <div class="small text-body-secondary"><?= e(date('g:i A', (int) strtotime((string) $award['created_at']))) ?></div>
+                          <div><?= e(format_date((string) $award['created_at'])) ?></div>
+                          <div class="small text-body-secondary"><?= e(format_time((string) $award['created_at'])) ?></div>
                         </td>
                         <td class="text-end">
 <?php if (($award['ledger_id'] ?? null) !== null): ?>

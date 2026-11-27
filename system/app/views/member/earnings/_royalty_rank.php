@@ -54,8 +54,7 @@ $icon   = RoyaltyRank::LABELS[$rank]['icon'] ?? 'bx-user';
 $paying = in_array($rank, RoyaltyRank::PAYING, true);
 
 $period = (string) ($royalty['period'] ?? '');
-$ts     = $period === '' ? false : strtotime($period . '-01 12:00:00');
-$month  = $ts === false ? 'this month' : date('F Y', $ts);
+$month  = format_month($period, 'this month');
 
 /* The one requirement that unlocks the next rank. Every rank is
  * self-prerequisite, so a single item is the whole step (plan §12.2).

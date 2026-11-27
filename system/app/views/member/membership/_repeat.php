@@ -38,7 +38,7 @@ $earned       = round((float) ($totals['total_awarded'] ?? ($credited + $pending
 $show         = is_array($unilevel) && ((bool) ($unilevel['enabled'] ?? false) || $count + $pendingCount > 0);
 
 $period      = (string) ($status['period'] ?? UnilevelCycle::periodOf());
-$periodLabel = strtotime($period . '-01') === false ? $period : date('F Y', (int) strtotime($period . '-01'));
+$periodLabel = format_month($period, $period);
 $active      = (bool) ($status['active'] ?? true);
 $requires    = (bool) ($status['requires_active'] ?? true);
 ?>

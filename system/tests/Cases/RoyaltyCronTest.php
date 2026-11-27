@@ -1043,11 +1043,11 @@ return [
         assert_contains('data-live-region="commission-royalty-ops"', $html);
         assert_contains('Operations', $html);
         assert_contains('Open month', $html);
-        assert_contains(date('F Y', strtotime($current . '-01 12:00:00')), $html, 'the open month is labelled');
+        assert_contains(format_month($current), $html, 'the open month is labelled');
         assert_contains('not closable yet', $html);
         assert_contains('Last final month', $html);
         assert_contains('Pending periods', $html);
-        assert_contains(date('M Y', strtotime($last . '-01 12:00:00')), $html, 'the pending month is named');
+        assert_contains(format_month($last), $html, 'the pending month is named');
         assert_contains('Awaiting payment', $html);
         assert_contains('Royalty earning', $html);
         assert_contains('Payments:', $html);

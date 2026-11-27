@@ -50,11 +50,7 @@ $open     = array_merge(['levels' => 0, 'members' => 0, 'amount' => 0.0], $team_
 $maxLevels = (int) ($team_harvest_max ?? TeamHarvestLevel::maxLevels());
 $range    = $range ?? ['label' => ''];
 
-$monthLabel = static function (string $month): string {
-    $ts = strtotime($month . '-01 12:00:00');
-
-    return $ts === false ? $month : date('M Y', $ts);
-};
+$monthLabel = static fn (string $month): string => format_month($month, $month);
 
 $membersUrl = url('admin/members?harvest=yes');
 ?>

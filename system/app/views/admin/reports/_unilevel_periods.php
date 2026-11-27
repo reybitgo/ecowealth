@@ -15,11 +15,7 @@ declare(strict_types=1);
 
 $periods = $unilevel_periods ?? [];
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('M Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 ?>
               <div class="card h-100 report-unilevel-periods-card" data-live-region="report-unilevel-periods">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">

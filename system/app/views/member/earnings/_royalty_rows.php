@@ -33,11 +33,7 @@ $hasFilters = (string) $filters['period'] !== ''
     || (string) $filters['status'] !== ''
     || (string) $filters['rank'] !== '';
 
-$monthLabel = static function (string $period): string {
-    $ts = $period === '' ? false : strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('F Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $rankTones = [
     RoyaltyRank::DIRECTOR   => 'success',
@@ -131,7 +127,7 @@ $rankTones = [
 <?php if ($hasPaidAt): ?>
                           <div><?= e(format_date((string) $creditedAt)) ?></div>
                           <div class="small text-body-secondary">
-                            <?= e(date('g:i A', (int) strtotime((string) $creditedAt))) ?>
+                            <?= e(format_time((string) $creditedAt)) ?>
                           </div>
 <?php else: ?>
                           <span class="text-body-secondary small">—</span>

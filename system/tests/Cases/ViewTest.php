@@ -894,6 +894,63 @@ return [
         assert_same([], $offenders, 'no operational section carries a personal destination');
     },
 
+    'UX-29 one date, time and month format across every view' => function () use ($render, $adminStats): void {
+        /* The display shapes: a timestamp, a date, a clock time, a
+         * month period and a chart tick. */
+        assert_same('Nov 1, 2026 2:05 PM', format_datetime('2026-11-01 14:05:00'));
+        assert_same('Nov 1, 2026', format_date('2026-11-01 14:05:00'));
+        assert_same('Nov 1, 2026', format_date(strtotime('2026-11-01 14:05:00')), 'a Unix timestamp formats like a datetime');
+        assert_same('2:05 PM', format_time('2026-11-01 14:05:00'));
+        assert_same('November 2026', format_month('2026-11'));
+        assert_same('November 2026', format_month('2026-11-01 14:05:00'));
+        assert_same('not a period', format_month('not a period', 'not a period'), 'an unreadable period still names itself');
+        assert_same('Nov 1', format_day('2026-11-01'));
+        assert_same('—', format_date(null));
+        assert_same('—', format_date(''));
+        assert_same('—', format_datetime('0000-00-00 00:00:00'));
+
+        /* No view formats a date itself: the five shapes the audit found,
+         * and the split date/time cells, all go through the helpers. */
+        $root = dirname(__DIR__, 2) . '/app/views';
+        $raw  = [
+            "date('M j, Y g:i A'",
+            "date('M j, Y'",
+            "date('j M Y'",
+            "date('M Y'",
+            "date('F Y'",
+            "date('D, M j, Y')",
+            "date('g:i A'",
+            "date('M j'",
+        ];
+
+        $offenders = [];
+        $files     = 0;
+
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root)) as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $files++;
+            $source = (string) file_get_contents($file->getPathname());
+
+            foreach ($raw as $needle) {
+                if (str_contains($source, $needle)) {
+                    $offenders[] = $file->getPathname() . ': ' . $needle;
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'every view uses the shared formatters');
+        assert_true($files >= 300, 'the sweep reads the whole view tree');
+
+        /* The dashboard's welcome date is the shared date. */
+        test_signed_in_as(test_user('ux29_admin', 'admin'));
+        $html = $render('admin', 'admin/dashboard', ['stats' => $adminStats, 'recent' => []]);
+
+        assert_contains(format_date('now'), $html, 'the welcome date uses the shared date format');
+    },
+
     'Escaping is applied everywhere user text is printed' => function (): void {
         $html = View::capture('errors/404', [
             'code'    => 404,

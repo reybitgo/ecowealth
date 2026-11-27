@@ -483,27 +483,84 @@ function like_escape(string $value): string
     return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
 }
 
-/** Format a MySQL datetime for display, e.g. "Nov 1, 2026 2:05 PM". */
-function format_datetime(?string $value): string
+/**
+ * The one timestamp shape the product prints, e.g. "Nov 1, 2026 2:05 PM".
+ *
+ * Accepts a MySQL datetime (anything strtotime() reads) or a Unix
+ * timestamp, so a view never formats a date itself. Null, blank and
+ * zero dates return an em dash.
+ */
+function format_datetime(string|int|null $value): string
 {
-    if ($value === null || $value === '' || str_starts_with($value, '0000')) {
-        return '—';
-    }
-    $ts = strtotime($value);
-    return $ts === false ? '—' : date('M j, Y g:i A', $ts);
+    $ts = display_timestamp($value);
+
+    return $ts === null ? '—' : date('M j, Y g:i A', $ts);
 }
 
 /**
- * Format a date-only figure the way the escrow copy reads it, e.g.
- * "21 Nov 2026". Null/blank returns an em dash, matching format_datetime().
+ * A date on its own, e.g. "Nov 21, 2026" — the date half of
+ * format_datetime(), used by every table, ledger and escrow note.
  */
-function format_date(?string $value): string
+function format_date(string|int|null $value): string
 {
-    if ($value === null || $value === '' || str_starts_with($value, '0000')) {
-        return '—';
+    $ts = display_timestamp($value);
+
+    return $ts === null ? '—' : date('M j, Y', $ts);
+}
+
+/**
+ * A clock time on its own, e.g. "2:05 PM" — for the table cells that
+ * put the date and the time on separate lines.
+ */
+function format_time(string|int|null $value): string
+{
+    $ts = display_timestamp($value);
+
+    return $ts === null ? '—' : date('g:i A', $ts);
+}
+
+/**
+ * A month-period label for statements, cycles and "Active for" copy,
+ * e.g. "November 2026". Accepts a MySQL date/datetime or a `YYYY-MM`
+ * period; $fallback is printed when the value cannot be read (period
+ * filters pass the raw period so an unrecognised value still names
+ * itself).
+ */
+function format_month(?string $value, ?string $fallback = null): string
+{
+    $raw = trim((string) $value);
+
+    if ($raw === '' || str_starts_with($raw, '0000')) {
+        return $fallback ?? '—';
     }
+
+    $ts = strtotime(preg_match('/^\d{4}-\d{2}$/', $raw) === 1 ? $raw . '-01' : $raw);
+
+    return $ts === false ? ($fallback ?? '—') : date('F Y', $ts);
+}
+
+/** A compact day for chart ticks, e.g. "Nov 1". */
+function format_day(string|int|null $value): string
+{
+    $ts = display_timestamp($value);
+
+    return $ts === null ? '—' : date('M j', $ts);
+}
+
+/** Shared null, blank and timestamp handling for the display formatters. */
+function display_timestamp(string|int|null $value): ?int
+{
+    if (is_int($value)) {
+        return $value > 0 ? $value : null;
+    }
+
+    if ($value === null || trim($value) === '' || str_starts_with($value, '0000')) {
+        return null;
+    }
+
     $ts = strtotime($value);
-    return $ts === false ? '—' : date('j M Y', $ts);
+
+    return $ts === false ? null : $ts;
 }
 
 /** Uppercase initials (max 2 letters) derived from a username or full name. */
@@ -530,7 +587,7 @@ function time_ago(?string $value): string
     if ($diff < 3600)    return floor($diff / 60) . ' min ago';
     if ($diff < 86400)   return floor($diff / 3600) . ' hr ago';
     if ($diff < 604800)  return floor($diff / 86400) . ' day(s) ago';
-    return date('M j, Y', $ts);
+    return format_date($ts);
 }
 
 /**

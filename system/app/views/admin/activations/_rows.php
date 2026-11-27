@@ -85,13 +85,13 @@ $hasFilters = (string) $filters['status'] !== ''
                           <div class="member-meta activation-note">
                             Binary: <?= e(number_format($binaryPoints, 0, '.', '')) ?> pts ·
                             <?= e(money($binaryTotal)) ?> ·
-                            <?= $processedAt !== '' ? e(date('M j', (int) strtotime($processedAt))) : 'not processed' ?>
+                            <?= $processedAt !== '' ? e(format_date($processedAt)) : 'not processed' ?>
                           </div>
 <?php endif; ?>
                         </td>
                         <td class="text-nowrap">
-                          <span class="member-meta"><?= e(date('M j, Y', (int) strtotime((string) $activation['created_at']))) ?></span>
-                          <div class="member-meta"><?= e(date('g:i A', (int) strtotime((string) $activation['created_at']))) ?></div>
+                          <span class="member-meta"><?= e(format_date((string) $activation['created_at'])) ?></span>
+                          <div class="member-meta"><?= e(format_time((string) $activation['created_at'])) ?></div>
 <?php if ($activation['reviewer_username'] !== null): ?>
                           <div class="member-meta">by @<?= e((string) $activation['reviewer_username']) ?></div>
 <?php endif; ?>

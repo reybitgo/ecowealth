@@ -96,7 +96,7 @@ foreach ($byDay as $day) {
                       <div class="report-highlight">
                         <p class="text-body-secondary small mb-1">Average order</p>
                         <h5 class="mb-3"><?= e(money($sales['average'])) ?></h5>
-                        <p class="text-body-secondary small mb-1">Best day<?= $best === null ? '' : ' · ' . e(date('M j', strtotime((string) $best['day'] . ' 12:00:00'))) ?></p>
+                        <p class="text-body-secondary small mb-1">Best day<?= $best === null ? '' : ' · ' . e(format_day((string) $best['day'])) ?></p>
                         <h6 class="mb-0"><?= e(money($best['amount'] ?? 0)) ?></h6>
                       </div>
                     </div>

@@ -168,18 +168,16 @@ if ($isRoyalty) {
     $periodOptions = [['value' => '', 'label' => 'Latest closed month']];
 
     foreach ($periods as $row) {
-        $ts = strtotime((string) $row['period'] . '-01 12:00:00');
         $periodOptions[] = [
             'value' => (string) $row['period'],
-            'label' => ($ts === false ? (string) $row['period'] : date('M Y', $ts))
+            'label' => format_month((string) $row['period'], (string) $row['period'])
                 . ' — ' . RoyaltyPeriod::label((string) $row['status']),
         ];
     }
 
-    $openTs = strtotime($open_period . '-01 12:00:00');
     $periodOptions[] = [
         'value' => $open_period,
-        'label' => ($openTs === false ? $open_period : date('M Y', $openTs)) . ' — current month (preview)',
+        'label' => format_month($open_period, $open_period) . ' — current month (preview)',
     ];
 } elseif ($isRepeat) {
     $filters = $filters ?? UnilevelAward::filterDefaults();

@@ -457,11 +457,7 @@ return [
         assert_contains(money(7000.0), $fragment);
         assert_contains('Last six awards', $fragment);
 
-        $monthLabel = static function (string $period): string {
-            $ts = strtotime($period . '-01 12:00:00');
-
-            return $ts === false ? $period : date('M Y', $ts);
-        };
+        $monthLabel = static fn (string $period): string => format_month($period, $period);
 
         foreach (array_slice($months, 0, 6) as $period) {
             assert_contains($monthLabel($period), $fragment, 'the last six awards include ' . $period);

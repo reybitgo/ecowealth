@@ -346,7 +346,7 @@ return [
         $periods = View::capture('admin/reports/_unilevel_periods', [
             'unilevel_periods' => Report::unilevelByPeriod(6),
         ]);
-        assert_contains('Oct 2026', $periods);
+        assert_contains(format_month('2026-10'), $periods);
         assert_contains('15', $periods);
         assert_contains('9', $periods);
         assert_contains(money(2000.0), $periods);

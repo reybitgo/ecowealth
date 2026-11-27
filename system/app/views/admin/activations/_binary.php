@@ -84,7 +84,7 @@ if ($nothingPlaced) {
                         <div class="col-6 col-md-3">
                           <div class="text-body-secondary small">Processed at</div>
                           <div class="fw-semibold text-nowrap">
-                            <?= $processedAt !== '' ? e(date('M j, Y g:i A', (int) strtotime($processedAt))) : '—' ?>
+                            <?= $processedAt !== '' ? e(format_datetime($processedAt)) : '—' ?>
                           </div>
                         </div>
                         <div class="col-6 col-md-3">
@@ -117,7 +117,7 @@ if ($nothingPlaced) {
 ?>
                             <tr>
                               <td class="text-nowrap small">
-                                <?= e(date('M j, Y', (int) strtotime((string) ($award['created_at'] ?? '')))) ?>
+                                <?= e(format_date((string) ($award['created_at'] ?? ''))) ?>
                               </td>
                               <td class="text-end text-nowrap small">
                                 @<?= e($awardUser) ?>

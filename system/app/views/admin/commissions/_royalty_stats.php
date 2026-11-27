@@ -36,11 +36,7 @@ $preview_mode = (bool) ($preview_mode ?? false);
 $open_period  = (string) ($open_period ?? ($stats['period'] ?? ''));
 $preview_url  = url('admin/commissions?ledger=royalty&period=' . rawurlencode($open_period));
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('F Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $previewEnabled = $preview !== null && (bool) ($preview['enabled'] ?? false);
 $previewEligible = $preview === null ? 0 : (int) ($preview['eligible'] ?? 0);

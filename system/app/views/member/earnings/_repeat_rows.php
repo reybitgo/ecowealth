@@ -96,7 +96,7 @@ $rowNote = static function (array $award) use ($releaseEnabled): string {
         return 'Being finalized — it is added on the next release run.';
     }
 
-    return 'Available after ' . format_date(date('Y-m-d H:i:s', $timestamp)) . '.';
+    return 'Available after ' . format_date($timestamp) . '.';
 };
 ?>
                     <tbody data-live-region="earnings-repeat-rows">
@@ -135,8 +135,8 @@ $rowNote = static function (array $award) use ($releaseEnabled): string {
 ?>
                       <tr data-live-key="<?= $id ?>">
                         <td class="text-nowrap commission-col-date">
-                          <div><?= e(date('M j, Y', (int) strtotime((string) $award['created_at']))) ?></div>
-                          <div class="small text-body-secondary"><?= e(date('g:i A', (int) strtotime((string) $award['created_at']))) ?></div>
+                          <div><?= e(format_date((string) $award['created_at'])) ?></div>
+                          <div class="small text-body-secondary"><?= e(format_time((string) $award['created_at'])) ?></div>
                         </td>
                         <td class="commission-col-source">
                           <span class="fw-medium">@<?= e((string) $award['buyer_username']) ?></span>
@@ -147,7 +147,7 @@ $rowNote = static function (array $award) use ($releaseEnabled): string {
                             <?= e((string) $award['product_name']) ?>
                             · Level <?= $level ?>
                             · order <?= e($orderNo) ?>
-                            · <?= e(date('M j, Y', (int) strtotime((string) $award['created_at']))) ?>
+                            · <?= e(format_date((string) $award['created_at'])) ?>
                           </div>
                         </td>
                         <td class="commission-col-package">

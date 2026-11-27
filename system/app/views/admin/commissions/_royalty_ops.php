@@ -24,17 +24,7 @@ $ops         = $ops ?? null;
 $preview     = $preview ?? null;
 $open_period = (string) ($open_period ?? '');
 
-$monthLabel = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('F Y', $ts);
-};
-
-$shortMonth = static function (string $period): string {
-    $ts = strtotime($period . '-01 12:00:00');
-
-    return $ts === false ? $period : date('M Y', $ts);
-};
+$monthLabel = static fn (string $period): string => format_month($period, $period);
 
 $openLabel = $open_period === '' ? '' : $monthLabel($open_period);
 
@@ -103,7 +93,7 @@ $next = $ops['next'] ?? null;
                       <div class="small text-body-secondary">The first month closes after the first full month.</div>
 <?php else: ?>
                       <div class="fw-semibold mb-1">
-                        <?= e($shortMonth((string) $ops['last_final']['period'])) ?>
+                        <?= e($monthLabel((string) $ops['last_final']['period'])) ?>
                         <?= status_badge((string) $ops['last_final']['status'], RoyaltyPeriod::STATUS_BADGES) ?>
                       </div>
                       <div class="small text-body-secondary">
@@ -121,7 +111,7 @@ $next = $ops['next'] ?? null;
 <?php else: ?>
                       <div class="fw-semibold mb-1"><?= count($ops['pending']) ?> to close</div>
                       <div class="small text-body-secondary">
-                        <?= e(implode(' · ', array_map($shortMonth, array_slice($ops['pending'], 0, 3)))) ?>
+                        <?= e(implode(' · ', array_map($monthLabel, array_slice($ops['pending'], 0, 3)))) ?>
 <?php if (count($ops['pending']) > 3): ?>
                         · +<?= count($ops['pending']) - 3 ?> more
 <?php endif; ?>
@@ -142,7 +132,7 @@ $next = $ops['next'] ?? null;
                       <div class="small text-body-secondary">
 <?php foreach ($ops['evaluated'] as $row): ?>
                         <div>
-                          <?= e($shortMonth((string) $row['period'])) ?>:
+                          <?= e($monthLabel((string) $row['period'])) ?>:
                           <?= (int) $row['pending'] ?> pending<?php if ($row['age_hours'] !== null): ?>,
                           <?= (int) $row['age_hours'] ?>h old<?php endif; ?>
                         </div>
@@ -189,10 +179,10 @@ $next = $ops['next'] ?? null;
                     <strong>Next run:</strong> nothing to close — the next scheduled run exits without writing.
 <?php elseif ($next['action'] === 'pay'): ?>
                     <strong>Next run:</strong> pays
-                    <span class="text-body"><?= e($shortMonth((string) $next['period'])) ?></span>, then closes any pending month.
+                    <span class="text-body"><?= e($monthLabel((string) $next['period'])) ?></span>, then closes any pending month.
 <?php else: ?>
                     <strong>Next run:</strong> closes
-                    <span class="text-body"><?= e($shortMonth((string) $next['period'])) ?></span>
+                    <span class="text-body"><?= e($monthLabel((string) $next['period'])) ?></span>
                     (evaluates and pays it).
 <?php endif; ?>
 <?php if ($next !== null): ?>

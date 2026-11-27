@@ -83,7 +83,7 @@ $roleTone = static fn (string $role): string => match ($role) {
                             </td>
                             <td class="d-none d-md-table-cell"><span class="badge bg-label-<?= e($roleTone($role)) ?>"><?= e(ucfirst($role)) ?></span></td>
                             <td><?= status_badge($status) ?></td>
-                            <td class="d-none d-lg-table-cell text-body-secondary text-nowrap"><?= e(date('M j, Y', strtotime((string) ($row['created_at'] ?? 'now')) ?: time())) ?></td>
+                            <td class="d-none d-lg-table-cell text-body-secondary text-nowrap"><?= e(format_date((string) ($row['created_at'] ?? 'now'))) ?></td>
                             <td class="d-none d-lg-table-cell text-body-secondary text-nowrap text-end"><?= e(time_ago((string) ($row['last_login_at'] ?? ''))) ?></td>
                           </tr>
 <?php endforeach; ?>
