@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-41 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-42 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -448,6 +448,7 @@ Three separate screens show build-phase numbers to end users: the product page, 
 **Evidence:** `admin/dashboard.php:103` — "Here is the latest picture of your catalogue, stock and team." The dashboard's KPI row shows accounts, products, inventory value and packages; "team" is not among them.
 **Impact:** the greeting sets an expectation the screen does not meet.
 **Fix:** match the copy to the cards, or add the missing team metric.
+**Status:** Fixed — the welcome card now reads "Here is the latest picture of your accounts, catalogue, sales and commissions.", naming the KPI cards the screen actually shows (total accounts, products and inventory value, the commerce roll-up's sales and commission tiles) instead of a team metric that is not there. `ViewTest`'s new `UX-42` case renders the dashboard, pins the new sentence, rejects the old "catalogue, stock and team" promise and requires the copy to name cards that render. `php -l` passes on the view and the test, and the `UX-42` case passes on 27 November 2026. No browser pass was made.
 
 ### UX-43 — A duplicated referral widget on three member pages (Low)
 

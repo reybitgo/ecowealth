@@ -1336,6 +1336,25 @@ return [
         assert_same('', flash_render(), 'the layout drained the queue before the page');
     },
 
+    'UX-42 the admin welcome copy describes the cards on this dashboard' => function () use ($render, $adminStats): void {
+        test_signed_in_as(test_user('ux42_admin', 'admin'));
+
+        $html = $render('admin', 'admin/dashboard', ['stats' => $adminStats, 'recent' => []]);
+
+        /* The greeting promised a "team" the screen has never shown. It now
+         * names the picture the cards actually give: accounts, catalogue and
+         * stock, sales and the commission ledgers. */
+        assert_contains(
+            'Here is the latest picture of your accounts, catalogue, sales and commissions.',
+            $html
+        );
+        assert_not_contains('catalogue, stock and team', $html, 'the greeting no longer promises a team metric');
+
+        foreach (['Total accounts', 'Inventory value', 'Sales today', 'Commissions · 30 days'] as $card) {
+            assert_contains($card, $html, 'the welcome copy matches a card on the page');
+        }
+    },
+
     'UX-25 the notification bell only renders when it has something to show' => function () use ($render): void {
         test_signed_in_as(test_user('ux25_member'));
 

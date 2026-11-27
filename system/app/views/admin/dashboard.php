@@ -100,7 +100,7 @@ $roleTone = static fn (string $role): string => match ($role) {
                       </div>
                       <h4 class="mb-2">Welcome back, <?= e($displayName) ?> &#x1f44b;</h4>
                       <p class="text-body-secondary mb-0">
-                        Here is the latest picture of your catalogue, stock and team.
+                        Here is the latest picture of your accounts, catalogue, sales and commissions.
                       </p>
                     </div>
                     <div class="d-flex flex-wrap align-items-center gap-2">
