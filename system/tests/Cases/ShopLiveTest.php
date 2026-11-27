@@ -218,7 +218,7 @@ return [
         $results = $payload['fragments']['shop-catalog-results'];
 
         assert_contains('No products match your search', $results);
-        assert_contains('Clear search', $results);
+        assert_contains('Clear filters', $results);
         assert_contains('data-live-region="shop-catalog-results"', $results);
     },
 

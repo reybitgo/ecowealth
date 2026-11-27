@@ -176,7 +176,7 @@ return [
         assert_contains('data-checkout-posted="0"', $html, 'a fresh page lets the draft restore');
         assert_contains('data-checkout-draft', $html);
         assert_contains('data-checkout-draft-clear', $html);
-        assert_contains('Start over', $html);
+        assert_contains('Clear draft', $html);
 
         $placeOrder = $tag($html, 'placeOrder', 'button');
         assert_true($placeOrder !== '', 'the Place order button must render');
@@ -330,7 +330,7 @@ return [
         assert_contains("field.name !== 'terms'", $js, 'the terms tick is never drafted');
 
         /* Typing saves on a short debounce and flushes before the page
-         * goes away; a submit drops the draft, Start over resets it. */
+         * goes away; a submit drops the draft, Clear draft resets it. */
         assert_contains("formEl.addEventListener('input', scheduleSave);", $js);
         assert_contains("window.addEventListener('pagehide', flush);", $js);
         assert_contains("formEl.addEventListener('submit'", $js);

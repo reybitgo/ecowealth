@@ -452,7 +452,7 @@ foreach ($moreStatements as $moreStatement) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -569,7 +569,7 @@ foreach ($moreStatements as $moreStatement) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -669,7 +669,7 @@ foreach ($moreStatements as $moreStatement) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -755,7 +755,7 @@ foreach ($moreStatements as $moreStatement) {
 <?php $hasFilters = (string) $filters['level'] !== '' || (string) $filters['status'] !== '' || (string) $filters['from'] !== '' || (string) $filters['to'] !== ''; ?>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -943,7 +943,7 @@ foreach ($moreStatements as $moreStatement) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -1046,7 +1046,7 @@ foreach ($moreStatements as $moreStatement) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>

@@ -115,7 +115,7 @@ $live = $live ?? [
                     </select>
                     <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== '' || $funded !== '' || $status !== ''): ?>
-                    <a href="<?= e(url('admin/wallets?tab=members')) ?>" class="btn btn-label-secondary">Clear</a>
+                    <a href="<?= e(url('admin/wallets?tab=members')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
                   </form>
                 </div>
@@ -165,7 +165,7 @@ $live = $live ?? [
                     <input type="date" name="to" class="form-control" value="<?= e($transfer_filters['to']) ?>" aria-label="To date" />
                     <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== '' || $transfer_filters['from'] !== '' || $transfer_filters['to'] !== ''): ?>
-                    <a href="<?= e(url('admin/wallets?tab=transfers')) ?>" class="btn btn-label-secondary">Clear</a>
+                    <a href="<?= e(url('admin/wallets?tab=transfers')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
                   </form>
                 </div>
@@ -210,7 +210,7 @@ $live = $live ?? [
                     />
                     <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== ''): ?>
-                    <a href="<?= e(url('admin/wallets?tab=topups')) ?>" class="btn btn-label-secondary">Clear</a>
+                    <a href="<?= e(url('admin/wallets?tab=topups')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
                   </form>
                 </div>

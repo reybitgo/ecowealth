@@ -132,7 +132,7 @@ $tabUrl = static function (string $status) use ($audit_url): string {
                     <input type="date" name="to" class="form-control" value="<?= e($filters['to']) ?>" aria-label="To date" />
                     <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($filters['q'] !== '' || $filters['from'] !== '' || $filters['to'] !== ''): ?>
-                    <a href="<?= e($tabUrl($filters['status'])) ?>" class="btn btn-label-secondary">Clear</a>
+                    <a href="<?= e($tabUrl($filters['status'])) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
                   </form>
                 </div>

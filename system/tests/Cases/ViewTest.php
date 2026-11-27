@@ -460,6 +460,41 @@ return [
         assert_same([], $offenders, 'card sections share the 24px page rhythm');
     },
 
+    'UX-16 every filter reset is one labelled, icon-bearing Clear filters control' => function (): void {
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+        $clears    = 0;
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            if (preg_match('/>\s*Clear\s*</', $source) === 1) {
+                $offenders[] = $file->getPathname() . ': a filter reset still reads Clear';
+            }
+
+            if (str_contains($source, 'Start over')) {
+                $offenders[] = $file->getPathname() . ': the checkout draft still reads Start over';
+            }
+
+            if ($file->getFilename() === 'catalog.php' && str_contains($source, 'aria-label="Clear search"')) {
+                $offenders[] = $file->getPathname() . ': the storefront clear control has no visible label';
+            }
+
+            $clears += (int) preg_match_all('/bx-x me-1"><\/i> Clear filters/', $source);
+        }
+
+        assert_same([], $offenders, 'every filter reset uses one name and one treatment');
+        assert_true($clears >= 20, 'the sweep finds the clear controls in the views');
+    },
+
     'UX-12 the member earnings tabs keep two primary pills and one statement menu' => function () use ($render): void {
         $user = test_user('ux12_member');
         test_signed_in_as($user);

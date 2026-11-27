@@ -13,7 +13,7 @@
  * them. Every edit is mirrored into sessionStorage, scoped to this tab
  * and to the member's own live surface, and put back when the checkout
  * is opened again. The draft is dropped on submit, when the member
- * picks a saved address, and when they choose Start over.
+ * picks a saved address, and when they choose Clear draft.
  *
  * Both behaviours are re-applied on change/input and after every page
  * show, including a bfcache restore, so a failed submit followed by a

@@ -92,7 +92,7 @@ $live = $live ?? [
                 <div>
                   <strong>Your checkout details were restored.</strong>
                   The delivery details and payment method you typed earlier were filled back in; nothing was submitted.
-                  <button type="button" class="btn btn-sm btn-link alert-link p-0 align-baseline" data-checkout-draft-clear>Start over</button>
+                  <button type="button" class="btn btn-sm btn-link alert-link p-0 align-baseline" data-checkout-draft-clear><i class="icon-base bx bx-x me-1"></i> Clear draft</button>
                 </div>
               </div>
 

@@ -73,7 +73,7 @@ $hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !==
                     </select>
                     <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
-                    <a href="<?= e(url('admin/members')) ?>" class="btn btn-label-secondary">Clear</a>
+                    <a href="<?= e(url('admin/members')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
                   </form>
                 </div>

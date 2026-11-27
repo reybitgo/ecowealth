@@ -91,7 +91,7 @@ return [
         ]);
 
         assert_contains('No products match your search', $html);
-        assert_contains('Clear search', $html);
+        assert_contains('Clear filters', $html);
         assert_not_contains('product-card', $html);
     },
 

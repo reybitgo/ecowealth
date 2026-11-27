@@ -36,7 +36,7 @@ $bonusTotals = $bonus_totals ?? [];
             ? 'Try a different word, or clear the search to see the whole catalogue.'
             : 'The catalogue is being prepared. Please check back soon.',
         'action_href'  => $query !== '' ? 'shop' : '',
-        'action_label' => $query !== '' ? 'Clear search' : '',
+        'action_label' => $query !== '' ? 'Clear filters' : '',
     ]);
 ?>
                   </div>

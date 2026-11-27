@@ -56,8 +56,8 @@ $live = $live ?? [
                       />
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== ''): ?>
-                      <a href="<?= e(url('shop')) ?>" class="btn btn-label-secondary" aria-label="Clear search">
-                        <i class="icon-base bx bx-x"></i>
+                      <a href="<?= e(url('shop')) ?>" class="btn btn-label-secondary">
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>

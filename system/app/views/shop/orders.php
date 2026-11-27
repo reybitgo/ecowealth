@@ -86,7 +86,7 @@ $live = $live ?? [
                     <div class="d-flex gap-2">
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
-                      <a href="<?= e(url('orders')) ?>" class="btn btn-label-secondary">Clear</a>
+                      <a href="<?= e(url('orders')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
                     </div>
                   </form>

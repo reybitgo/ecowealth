@@ -465,7 +465,7 @@ $headerDescription = match (true) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -577,7 +577,7 @@ $headerDescription = match (true) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -680,7 +680,7 @@ $headerDescription = match (true) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -779,7 +779,7 @@ $headerDescription = match (true) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -901,7 +901,7 @@ $headerDescription = match (true) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>
@@ -1000,7 +1000,7 @@ $headerDescription = match (true) {
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
                       <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
-                        <i class="icon-base bx bx-x me-1"></i> Clear
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
                       </a>
 <?php endif; ?>
                     </div>

@@ -67,6 +67,7 @@ return [
         assert_contains('name="from"', $html);
         assert_contains('name="to"', $html);
         assert_contains('Last 30 days', $html);
+        assert_not_contains('Clear filters', $html, 'the default window offers no clear action');
 
         /* Chart containers and live regions. */
         assert_contains('data-live-region="report-kpis"', $html);
@@ -116,6 +117,8 @@ return [
         assert_contains('value="2026-01-10"', $html);
         assert_contains('Jan 5, 2026 – Jan 10, 2026', $html);
         assert_contains('6 days', $html);
+        assert_contains('Clear filters', $html, 'a custom window offers the clear action');
+        assert_contains('Last 30 days', $html, 'the 30-day preset stays beside it');
     },
 
     'P15 the reports page escapes product and member data' => function () use ($renderReports): void {

@@ -67,9 +67,11 @@ $live = $live ?? [
     'interval' => 30000,
 ];
 
-$exportTypes = $export_types ?? ReportService::EXPORTS;
-$exportUrl   = $export_url ?? url('admin/reports/export');
-$query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawurlencode((string) $range['to']);
+$exportTypes    = $export_types ?? ReportService::EXPORTS;
+$exportUrl      = $export_url ?? url('admin/reports/export');
+$query          = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawurlencode((string) $range['to']);
+$defaultRange   = ReportService::range(null, null);
+$hasCustomRange = $range['from'] !== $defaultRange['from'] || $range['to'] !== $defaultRange['to'];
 ?>
 
             <div
@@ -120,6 +122,11 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                       <button type="submit" class="btn btn-primary">
                         <i class="icon-base bx bx-filter-alt me-1"></i> Apply
                       </button>
+<?php if ($hasCustomRange): ?>
+                      <a href="<?= e(url('admin/reports')) ?>" class="btn btn-label-secondary">
+                        <i class="icon-base bx bx-x me-1"></i> Clear filters
+                      </a>
+<?php endif; ?>
                       <a href="<?= e(url('admin/reports')) ?>" class="btn btn-label-secondary">Last 30 days</a>
                     </div>
                     <span class="text-body-secondary small ms-auto">

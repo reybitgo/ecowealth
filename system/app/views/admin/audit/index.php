@@ -145,7 +145,7 @@ $cards = [
                     <div class="d-flex align-items-center gap-2">
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($has_filters): ?>
-                      <a href="<?= e($auditUrl) ?>" class="btn btn-label-secondary">Clear</a>
+                      <a href="<?= e($auditUrl) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
                     </div>
                   </form>
