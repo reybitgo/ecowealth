@@ -172,7 +172,7 @@ $baseline = $harvest['baseline'] ?? null;
                     Showing the first <?= count($rows) ?> of <?= $queued ?> position<?= $queued === 1 ? '' : 's' ?>.
 <?php endif; ?>
                   </span>
-                  <span class="text-nowrap">
+                  <span class="member-harvest-note">
                     Open liability is derived, never stored: it moves with every qualification.
                   </span>
                 </div>

@@ -357,6 +357,14 @@
   .referral-box .referral-link-input {
     flex-basis: 100%;
   }
+
+  /* A full-sentence card-footer note cannot be nowrap on a phone: the card
+   * footer is a flex item with `min-width: auto`, so the one-line text set the
+   * minimum width of the whole page and scrolled it sideways (UX-38 browser
+   * pass). Above `sm` the one-line note is safe. */
+  .member-harvest-note {
+    white-space: normal;
+  }
 }
 
 /* ---------- Admin product thumbnails ---------- */
