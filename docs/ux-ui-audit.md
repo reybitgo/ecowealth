@@ -417,7 +417,7 @@ The pass also caught an unrelated phone-width bug on `/admin/members`: a card-fo
 **Evidence:** `admin/products/index.php` and `admin/orders/index.php` use `scope="col"` on every header; `admin/members/index.php:91-101`, `admin/activations/index.php:99-108` and the dashboard widget tables omit it.
 **Impact:** screen readers lose column associations in the tables operators use most.
 **Fix:** add `scope="col"` consistently (see UX-24).
-**Status:** Covered by the UX-24 change — every `<th>` in `app/views` carries a `scope`, and `ViewTest` now rejects an unscoped header cell.
+**Status:** Fixed — every `<th>` in `app/views` now names the cells it describes, and the value matches where the cell sits: `scope="col"` in a `<thead>` (including the member directory's generated head, the activation queue and both dashboard widgets the audit named), and `scope="row"` in a body or foot row. The product ladder's totals row was the remaining inconsistency: it marked all four of its cells as row headers, so its rate, payable amount and cap are data cells again (`<td>`) under a single `Total` row header, matching every report totals row. `ViewTest`'s new `UX-39` case checks the placement rather than only the presence of a `scope`, and pins the tables the audit cited plus the ladder's totals row. `php -l` passes on the changed view and the test; the `UX-39` and `UX-24` cases pass on 27 November 2026; no browser pass was made.
 
 ### What is already accessible and should be kept
 

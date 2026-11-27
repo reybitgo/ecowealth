@@ -178,19 +178,19 @@ $presetTotal = array_sum($preset);
 <?php endfor; ?>
                             </tbody>
                             <tfoot>
-                              <tr>
+                              <tr class="fw-semibold">
                                 <th scope="row">Total</th>
-                                <th scope="row">
+                                <td>
                                   <span class="badge bg-label-<?= $totalRate > ProductUnilevel::MAX_SUM ? 'danger' : 'success' ?>" data-unilevel-total>
                                     <?= e(number_format($totalRate, 3, '.', '')) ?>%
                                   </span>
-                                </th>
-                                <th scope="row" class="text-nowrap">
+                                </td>
+                                <td class="text-nowrap">
                                   <span data-unilevel-total-amount><?= e(money(round($base['unit'] * $totalRate / 100, 2))) ?></span>
-                                </th>
-                                <th scope="row" class="text-end">
+                                </td>
+                                <td class="text-end">
                                   <span class="small text-body-secondary">max <?= e($rateLabel(ProductUnilevel::MAX_SUM)) ?>%</span>
-                                </th>
+                                </td>
                               </tr>
                             </tfoot>
                           </table>

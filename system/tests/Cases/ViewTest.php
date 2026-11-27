@@ -1133,6 +1133,93 @@ return [
         );
     },
 
+    'UX-39 header cells keep their column and row semantics' => function (): void {
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+        $headers   = 0;
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $path    = str_replace('\\', '/', $file->getPathname());
+            $source  = (string) file_get_contents($file->getPathname());
+            $section = '';
+
+            preg_match_all('/<(\/?)(thead|tbody|tfoot|table|th)\b([^>]*)>/i', $source, $matches, PREG_SET_ORDER);
+
+            foreach ($matches as $match) {
+                $closing = $match[1] === '/';
+                $tag     = strtolower($match[2]);
+                $attrs   = $match[3];
+
+                if ($tag === 'table') {
+                    $section = $closing ? '' : 'table';
+                    continue;
+                }
+
+                if ($tag === 'thead' || $tag === 'tbody' || $tag === 'tfoot') {
+                    $section = $closing ? 'table' : $tag;
+                    continue;
+                }
+
+                if ($tag !== 'th' || $closing) {
+                    continue;
+                }
+
+                $headers++;
+                $scope = preg_match('/\bscope="([a-z]+)"/', $attrs, $hit) === 1 ? $hit[1] : '';
+
+                /* A column header belongs to the table head; a header cell
+                 * in the body or the foot labels its own row. The definition
+                 * tables carry no <thead>, so all of their headers are rows. */
+                $expected = $section === 'thead' ? 'col' : 'row';
+
+                if ($scope !== $expected) {
+                    $offenders[] = $path . ': a <th> in ' . ($section === '' ? 'no table section' : $section)
+                        . ' carries scope="' . $scope . '" instead of "' . $expected . '"';
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'every header cell names the cells it describes');
+        assert_true($headers >= 200, 'the sweep reads the tables');
+
+        /* The tables the audit cited: the directory's generated head, the
+         * activation queue and both dashboard widgets. */
+        $cited = [
+            'admin/members/index.php'           => '<th scope="col"',
+            'admin/activations/index.php'       => '<th scope="col">Member</th>',
+            'admin/dashboard/_recent.php'       => '<th scope="col">Account</th>',
+            'admin/dashboard/_order_status.php' => '<th scope="col">Status</th>',
+        ];
+
+        foreach ($cited as $path => $needle) {
+            assert_contains(
+                $needle,
+                (string) file_get_contents($root . '/' . $path),
+                $path . ' scopes its column headers'
+            );
+        }
+
+        /* A totals row names itself once; its rate, amount and cap are data
+         * cells, as in every report totals row. */
+        $totals = (string) file_get_contents($root . '/admin/products/_unilevel.php');
+
+        assert_contains('<th scope="row">Total</th>', $totals, 'the ladder totals row names itself');
+        assert_same(1, preg_match_all('/<th scope="row"/', $totals), 'only the totals row label is a row header');
+        assert_same(
+            1,
+            preg_match('/<td class="text-nowrap">\s*<span data-unilevel-total-amount>/', $totals),
+            'the totals row amount is a data cell'
+        );
+    },
+
     'UX-25 the notification bell only renders when it has something to show' => function () use ($render): void {
         test_signed_in_as(test_user('ux25_member'));
 
