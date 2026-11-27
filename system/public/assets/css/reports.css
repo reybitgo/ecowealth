@@ -131,6 +131,16 @@
 }
 
 @media (min-width: 768px) {
+  /* The label and the ten links cannot share a wrapped flex line at their
+   * content width, so the label used to break onto its own row and the
+   * sticky bar grew to ~90 px — deeper than the 10rem jump margin below.
+   * A zero flex basis keeps the label inline and lets the strip take the
+   * rest of the row, where it scrolls sideways, so the bar stays ~63 px. */
+  .reports-tab-list {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   .reports-page .report-section {
     scroll-margin-top: 10rem;
   }
