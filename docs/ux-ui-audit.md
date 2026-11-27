@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-16 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-18 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -217,6 +217,7 @@ The same "apply the filters" action is styled `btn-primary` on some pages and `b
 No `.required` rule exists in the application's CSS (custom or vendor), so the register-page asterisks are unstyled and visually inconsistent with checkout's red ones.
 **Impact:** users cannot tell which fields they must fill until the browser or server rejects them; the strongest form in the product (registration) marks requirements differently from the second strongest (checkout).
 **Fix:** add a single required marker component (red asterisk with an accessible "required" label), style `.required` (or replace it), and use it on every required field. Mark optional fields only when they are the minority.
+**Status:** Fixed in `90f5c81` — `required_marker()` in `app/helpers.php` renders one red asterisk plus a visually hidden "(required)", `.required` is styled in `app.css`, and all 54 required fields across the auth, shop, member and admin forms use it (registration and checkout included). The old unstyled `<span class="required">*</span>` and the ad-hoc `<span class="text-danger">*</span>` markers are gone; `ViewTest` sweeps every view for both and pins the marker's accessible output. `php -l` passes on every changed file; the UX-18 case, `ProductViewTest`, `PackageViewTest`, `OrderViewTest`, `MembershipViewTest`, `PaymentViewTest`, `PayoutViewTest`, `FulfilmentViewTest` and the affected live suites (member profile, S-Login, membership, genealogy, e-wallet, admin codes, admin wallets, admin members, shop) pass on 27 November 2026; no browser pass was made.
 
 ### UX-19 — Same-role buttons use different emphasis (Medium)
 
