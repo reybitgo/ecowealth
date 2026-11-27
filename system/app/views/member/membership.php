@@ -137,29 +137,11 @@ $live = $live ?? [
                       </small>
                     </div>
                     <div class="card-body">
-                      <label class="form-label small text-body-secondary" for="membershipReferral">Link</label>
-                      <div class="referral-box">
-                        <input
-                          type="text"
-                          class="form-control referral-link-input"
-                          id="membershipReferral"
-                          value="<?= e($referral_link) ?>"
-                          readonly
-                          onfocus="this.select()"
-                        />
-                        <button
-                          type="button"
-                          class="btn btn-icon btn-text-secondary"
-                          data-copy="<?= e($referral_link) ?>"
-                          data-copy-tooltip="Copy link"
-                          data-bs-toggle="tooltip"
-                          title="Copy link"
-                          aria-label="Copy referral link"
-                        ><i class="icon-base bx bx-copy"></i></button>
-                      </div>
-                      <div class="mt-3 small">
-                        Code <strong><?= e((string) ($member['referral_code'] ?? '—')) ?></strong>
-                      </div>
+<?= View::partial('referral_link', [
+    'link' => $referral_link,
+    'code' => (string) ($member['referral_code'] ?? ''),
+    'id'   => 'membershipReferral',
+]) ?>
                       <div class="mt-2 small text-body-secondary">
                         Sponsor:
                         <?= $sponsorName === null ? 'company' : e('@' . (string) $sponsorName) ?>

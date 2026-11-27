@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-42 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-43 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -455,6 +455,7 @@ Three separate screens show build-phase numbers to end users: the product page, 
 **Evidence:** the referral link appears on the dashboard hero (`member/dashboard.php`), the Membership page referral card (`member/membership.php`) and the Genealogy team-chain card (`member/genealogy.php`). Copy/labels differ slightly ("Your referral link" vs "Referral link", "Code" vs "Referral code").
 **Impact:** three implementations to keep in sync; the labels already differ.
 **Fix:** extract one `partials/referral_link.php` and use it in all three places.
+**Status:** Fixed — `partials/referral_link.php` now owns the whole widget: the "Your referral link" label, the read-only field, the copy button and the "Referral code" line (with the dashboard's Team-chain sentence passed as the partial's note). The dashboard (`referralLink`), Membership (`membershipReferral`) and Genealogy (`genealogyReferral`) each render it with their own input id, so the labels inside the widget no longer differ between the three pages. `ViewTest`'s `UX-43` case renders the partial with a link, a code and a note and with a blank code, and sweeps every member view to require the partial and reject a private `referral-box`/`referral-link-input`. `php -l` passes on the partial and the three pages; the `UX-43` case, `MembershipViewTest` (24 cases), `MemberDashboardLiveTest` (10), `MemberGenealogyLiveTest` (10) and `BinaryTreeServiceTest` (48) pass on 27 November 2026. The full `ViewTest` group was not run to completion (it was still running after ten minutes), and no browser pass was made.
 
 ---
 

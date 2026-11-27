@@ -84,34 +84,12 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
                       </div>
                     </div>
                     <div class="col-lg-7">
-                      <label class="form-label small text-body-secondary mb-1" for="referralLink">
-                        Your referral link
-                      </label>
-                      <div class="referral-box">
-                        <input
-                          type="text"
-                          class="form-control referral-link-input"
-                          id="referralLink"
-                          value="<?= e($referral_link) ?>"
-                          readonly
-                          onfocus="this.select()"
-                        />
-                        <button
-                          type="button"
-                          class="btn btn-icon btn-text-secondary"
-                          data-copy="<?= e($referral_link) ?>"
-                          data-copy-tooltip="Copy link"
-                          data-bs-toggle="tooltip"
-                          title="Copy link"
-                          aria-label="Copy referral link"
-                        >
-                          <i class="icon-base bx bx-copy"></i>
-                        </button>
-                      </div>
-                      <div class="small text-body-secondary mt-2">
-                        Referral code <strong><?= e($referral_code) ?></strong> · every signup through this link is
-                        recorded in your Team chain.
-                      </div>
+<?= View::partial('referral_link', [
+    'link' => $referral_link,
+    'code' => $referral_code,
+    'id'   => 'referralLink',
+    'note' => 'every signup through this link is recorded in your Team chain.',
+]) ?>
                     </div>
                   </div>
                 </div>

@@ -1355,6 +1355,69 @@ return [
         }
     },
 
+    'UX-43 the referral widget has one implementation' => function (): void {
+        /* The dashboard hero, the Membership card and the Genealogy team
+         * chain each hand-rolled the link field, copy button and code line,
+         * and the labels had drifted. One partial owns the markup now. */
+        $root  = dirname(__DIR__, 2);
+        $pages = [
+            'app/views/member/dashboard.php'  => 'referralLink',
+            'app/views/member/membership.php' => 'membershipReferral',
+            'app/views/member/genealogy.php'  => 'genealogyReferral',
+        ];
+
+        foreach ($pages as $path => $id) {
+            $source = (string) file_get_contents($root . '/' . $path);
+
+            assert_contains("View::partial('referral_link'", $source, $path . ' renders the shared widget');
+            assert_contains("'" . $id . "'", $source, $path . ' keeps its own input id');
+            assert_not_contains('referral-box', $source, $path . ' no longer carries a private widget');
+            assert_not_contains('referral-link-input', $source, $path . ' no longer carries a private field');
+        }
+
+        $memberViews = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root . '/app/views/member')
+        );
+        $offenders = [];
+
+        foreach ($memberViews as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            if (str_contains($source, 'referral-box') || str_contains($source, 'referral-link-input')) {
+                $offenders[] = str_replace($root . '/', '', $file->getPathname());
+            }
+        }
+
+        assert_same([], $offenders, 'no member view keeps a private copy of the widget');
+
+        $html = View::partial('referral_link', [
+            'link' => 'https://example.test/register?ref=ABCD1234',
+            'code' => 'ABCD1234',
+            'id'   => 'ux43Referral',
+            'note' => 'every signup through this link is recorded in your Team chain.',
+        ]);
+
+        assert_contains('for="ux43Referral">Your referral link</label>', $html);
+        assert_contains('id="ux43Referral"', $html);
+        assert_contains('value="https://example.test/register?ref=ABCD1234"', $html);
+        assert_contains('data-copy="https://example.test/register?ref=ABCD1234"', $html);
+        assert_contains('data-copy-tooltip="Copy link"', $html);
+        assert_contains('aria-label="Copy referral link"', $html);
+        assert_contains('Referral code <strong>ABCD1234</strong>', $html);
+        assert_contains('· every signup through this link is recorded in your Team chain.', $html);
+        assert_not_contains('>Link</label>', $html, 'the old Membership label is gone');
+        assert_not_contains('>Code <strong>', $html, 'the old code label is gone');
+
+        /* A member without a code still reads a complete line. */
+        $blank = View::partial('referral_link', ['link' => '', 'code' => '', 'id' => 'ux43Blank']);
+
+        assert_contains('Referral code <strong>—</strong>', $blank);
+    },
+
     'UX-25 the notification bell only renders when it has something to show' => function () use ($render): void {
         test_signed_in_as(test_user('ux25_member'));
 
