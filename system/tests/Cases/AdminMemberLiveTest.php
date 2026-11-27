@@ -142,9 +142,11 @@ return [
         assert_contains('name="q"', $filters);
         assert_contains('name="package"', $filters);
         assert_contains('No package', $filters);
-        /* Phase 20E: the Team Harvest filter shares the form. */
+        /* Phase 20E: the Team Harvest filter shares the form, and UX-17
+         * names it in a visible label instead of the option text. */
         assert_contains('name="harvest"', $filters);
-        assert_contains('Team Harvest: all', $filters);
+        assert_contains('<label class="form-label" for="member-filter-harvest">Team Harvest</label>', $filters);
+        assert_contains('<label class="form-label" for="member-filter-placement">Binary placement</label>', $filters);
 
         /* Phase 20E: the queue card explains its empty state. */
         assert_contains('data-live-region="member-harvest"', $harvest);

@@ -495,6 +495,46 @@ return [
         assert_true($clears >= 20, 'the sweep finds the clear controls in the views');
     },
 
+    'UX-17 every filter control carries a visible label' => function (): void {
+        $root = dirname(__DIR__, 2) . '/app/views';
+
+        /* The bars that used to rely on aria-label and placeholder text only,
+         * with the number of controls each one labels. */
+        $bars = [
+            'admin/members/_filters.php'  => 6,
+            'admin/activations/index.php' => 2,
+            'admin/products/index.php'    => 4,
+            'admin/packages/index.php'    => 3,
+            'admin/wallets/index.php'     => 7,
+            'admin/payouts/index.php'     => 3,
+        ];
+
+        $offenders = [];
+
+        foreach ($bars as $path => $expected) {
+            $source = (string) file_get_contents($root . '/' . $path);
+
+            preg_match_all('/<label class="form-label" for="([^"]+)"/', $source, $labels);
+            $labelIds = $labels[1] ?? [];
+
+            if (count($labelIds) !== $expected) {
+                $offenders[] = $path . ': expected ' . $expected . ' visible filter labels, found ' . count($labelIds);
+            }
+
+            foreach ($labelIds as $id) {
+                if (!str_contains($source, 'id="' . $id . '"')) {
+                    $offenders[] = $path . ': the label for "' . $id . '" points at no control';
+                }
+            }
+
+            if (preg_match('/aria-label="(?:Search|Filter by)/', $source) === 1) {
+                $offenders[] = $path . ': a filter control still relies on aria-label only';
+            }
+        }
+
+        assert_same([], $offenders, 'every filter control names itself in a visible label');
+    },
+
     'UX-12 the member earnings tabs keep two primary pills and one statement menu' => function () use ($render): void {
         $user = test_user('ux12_member');
         test_signed_in_as($user);

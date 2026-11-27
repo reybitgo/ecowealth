@@ -852,7 +852,10 @@ return [
 
         assert_contains('name="unilevel"', $html);
         assert_contains('<option value="on" selected>', $html);
-        assert_contains('Repeat bonus — off', $html);
+        /* UX-17: the field is named above the select, so the options are plain. */
+        assert_contains('<label class="form-label" for="product-filter-unilevel">Repeat purchase</label>', $html);
+        assert_contains('value="off"', $html);
+        assert_contains('>Off</option>', $html);
     },
 
     /* ==========================================================

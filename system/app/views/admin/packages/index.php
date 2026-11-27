@@ -52,30 +52,41 @@ $live = $live ?? [
               <div class="card">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <h5 class="mb-0">Associate packages</h5>
-                  <form method="GET" action="<?= e(url('admin/packages')) ?>" class="catalog-filter d-flex flex-wrap gap-2">
+                  <form method="GET" action="<?= e(url('admin/packages')) ?>" class="catalog-filter d-flex flex-wrap align-items-end gap-2">
                     <?= per_page_hidden() ?>
-                    <input
-                      type="search"
-                      name="q"
-                      class="form-control"
-                      value="<?= e($query) ?>"
-                      placeholder="Search name or slug…"
-                      aria-label="Search packages"
-                    />
-                    <select name="status" class="form-select" aria-label="Filter by status">
-                      <option value="">All statuses</option>
-                      <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
-                      <option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                    </select>
-                    <select name="binary" class="form-select" aria-label="Filter by binary">
-                      <option value="">All sources</option>
-                      <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>Binary on</option>
-                      <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Binary off</option>
-                    </select>
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="package-filter-q">Search</label>
+                      <input
+                        type="search"
+                        id="package-filter-q"
+                        name="q"
+                        class="form-control"
+                        value="<?= e($query) ?>"
+                        placeholder="Name or slug…"
+                      />
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="package-filter-status">Status</label>
+                      <select id="package-filter-status" name="status" class="form-select">
+                        <option value="">All statuses</option>
+                        <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
+                        <option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                      </select>
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="package-filter-binary">Binary</label>
+                      <select id="package-filter-binary" name="binary" class="form-select">
+                        <option value="">All</option>
+                        <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>Binary on</option>
+                        <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Binary off</option>
+                      </select>
+                    </div>
+                    <div class="filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
-                    <a href="<?= e(url('admin/packages')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
+                      <a href="<?= e(url('admin/packages')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
+                    </div>
                   </form>
                 </div>
 

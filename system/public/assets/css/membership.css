@@ -906,18 +906,25 @@
 .membership-filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: flex-end;
+  gap: 0.75rem;
 }
 
-.membership-filters .form-control {
-  max-width: 19rem;
-  min-width: 12rem;
-}
-
-.membership-filters .form-select {
+.membership-filters .filter-field {
+  flex: 1 1 9rem;
   max-width: 12rem;
-  min-width: 9rem;
+}
+
+.membership-filters .filter-field-wide {
+  flex: 1.5 1 12rem;
+  max-width: 19rem;
+}
+
+@media (max-width: 575.98px) {
+  .membership-filters .filter-field {
+    flex: 1 1 100%;
+    max-width: none;
+  }
 }
 
 /* ---------- Admin: codes ------------------------------------- */

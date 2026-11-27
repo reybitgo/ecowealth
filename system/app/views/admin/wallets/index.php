@@ -92,31 +92,42 @@ $live = $live ?? [
               <div class="card">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <h5 class="mb-0">Members</h5>
-                  <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap gap-2 wallet-search">
+                  <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap align-items-end gap-2 wallet-search">
                     <input type="hidden" name="tab" value="members" />
                     <?= per_page_hidden() ?>
-                    <input
-                      type="search"
-                      name="q"
-                      class="form-control"
-                      value="<?= e($query) ?>"
-                      placeholder="Username, name or email…"
-                      aria-label="Search members"
-                    />
-                    <select name="funded" class="form-select" aria-label="Filter by balance">
-                      <option value="">All members</option>
-                      <option value="1" <?= $funded === '1' ? 'selected' : '' ?>>Funded only</option>
-                    </select>
-                    <select name="status" class="form-select" aria-label="Filter by status">
-                      <option value="">All statuses</option>
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="wallet-member-q">Search</label>
+                      <input
+                        type="search"
+                        id="wallet-member-q"
+                        name="q"
+                        class="form-control"
+                        value="<?= e($query) ?>"
+                        placeholder="Username, name or email…"
+                      />
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="wallet-member-funded">Balance</label>
+                      <select id="wallet-member-funded" name="funded" class="form-select">
+                        <option value="">All members</option>
+                        <option value="1" <?= $funded === '1' ? 'selected' : '' ?>>Funded only</option>
+                      </select>
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="wallet-member-status">Status</label>
+                      <select id="wallet-member-status" name="status" class="form-select">
+                        <option value="">All statuses</option>
 <?php foreach (['active' => 'Active', 'pending' => 'Pending', 'inactive' => 'Inactive', 'suspended' => 'Suspended'] as $value => $label): ?>
-                      <option value="<?= e($value) ?>" <?= $status === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+                        <option value="<?= e($value) ?>" <?= $status === $value ? 'selected' : '' ?>><?= e($label) ?></option>
 <?php endforeach; ?>
-                    </select>
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                      </select>
+                    </div>
+                    <div class="filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== '' || $funded !== '' || $status !== ''): ?>
-                    <a href="<?= e(url('admin/wallets?tab=members')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
+                      <a href="<?= e(url('admin/wallets?tab=members')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
+                    </div>
                   </form>
                 </div>
 
@@ -150,23 +161,34 @@ $live = $live ?? [
                       (sender debit, recipient credit, admin fee).
                     </p>
                   </div>
-                  <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap gap-2 wallet-search">
+                  <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap align-items-end gap-2 wallet-search">
                     <input type="hidden" name="tab" value="transfers" />
                     <?= per_page_hidden() ?>
-                    <input
-                      type="search"
-                      name="q"
-                      class="form-control"
-                      value="<?= e($query) ?>"
-                      placeholder="Sender, recipient or note…"
-                      aria-label="Search transfers"
-                    />
-                    <input type="date" name="from" class="form-control" value="<?= e($transfer_filters['from']) ?>" aria-label="From date" />
-                    <input type="date" name="to" class="form-control" value="<?= e($transfer_filters['to']) ?>" aria-label="To date" />
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="wallet-transfer-q">Search</label>
+                      <input
+                        type="search"
+                        id="wallet-transfer-q"
+                        name="q"
+                        class="form-control"
+                        value="<?= e($query) ?>"
+                        placeholder="Sender, recipient or note…"
+                      />
+                    </div>
+                    <div class="filter-field filter-field-date">
+                      <label class="form-label" for="wallet-transfer-from">From</label>
+                      <input type="date" id="wallet-transfer-from" name="from" class="form-control" value="<?= e($transfer_filters['from']) ?>" />
+                    </div>
+                    <div class="filter-field filter-field-date">
+                      <label class="form-label" for="wallet-transfer-to">To</label>
+                      <input type="date" id="wallet-transfer-to" name="to" class="form-control" value="<?= e($transfer_filters['to']) ?>" />
+                    </div>
+                    <div class="filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== '' || $transfer_filters['from'] !== '' || $transfer_filters['to'] !== ''): ?>
-                    <a href="<?= e(url('admin/wallets?tab=transfers')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
+                      <a href="<?= e(url('admin/wallets?tab=transfers')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
+                    </div>
                   </form>
                 </div>
 
@@ -197,21 +219,26 @@ $live = $live ?? [
                     <h5 class="mb-0">Admin top-ups</h5>
                     <p class="text-body-secondary small mb-0">Every credit is a top-up row plus one ledger row plus an audit entry.</p>
                   </div>
-                  <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap gap-2 wallet-search">
+                  <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap align-items-end gap-2 wallet-search">
                     <input type="hidden" name="tab" value="topups" />
                     <?= per_page_hidden() ?>
-                    <input
-                      type="search"
-                      name="q"
-                      class="form-control"
-                      value="<?= e($query) ?>"
-                      placeholder="Member, admin or note…"
-                      aria-label="Search top-ups"
-                    />
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="wallet-topup-q">Search</label>
+                      <input
+                        type="search"
+                        id="wallet-topup-q"
+                        name="q"
+                        class="form-control"
+                        value="<?= e($query) ?>"
+                        placeholder="Member, admin or note…"
+                      />
+                    </div>
+                    <div class="filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== ''): ?>
-                    <a href="<?= e(url('admin/wallets?tab=topups')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
+                      <a href="<?= e(url('admin/wallets?tab=topups')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
+                    </div>
                   </form>
                 </div>
 

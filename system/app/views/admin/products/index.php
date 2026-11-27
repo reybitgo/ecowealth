@@ -59,35 +59,49 @@ $live = $live ?? [
                     <h5 class="mb-0">Catalogue</h5>
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </div>
-                  <form method="GET" action="<?= e(url('admin/products')) ?>" class="catalog-filter d-flex flex-wrap gap-2">
+                  <form method="GET" action="<?= e(url('admin/products')) ?>" class="catalog-filter d-flex flex-wrap align-items-end gap-2">
                     <?= per_page_hidden() ?>
-                    <input
-                      type="search"
-                      name="q"
-                      class="form-control"
-                      value="<?= e($query) ?>"
-                      placeholder="Search name or SKU…"
-                      aria-label="Search products"
-                    />
-                    <select name="status" class="form-select" aria-label="Filter by status">
-                      <option value="">All statuses</option>
-                      <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
-                      <option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                    </select>
-                    <select name="unilevel" class="form-select" aria-label="Filter by repeat-purchase bonus">
-                      <option value="">Repeat bonus — all</option>
-                      <option value="on" <?= $unilevel === 'on' ? 'selected' : '' ?>>Repeat bonus — on</option>
-                      <option value="off" <?= $unilevel === 'off' ? 'selected' : '' ?>>Repeat bonus — off</option>
-                    </select>
-                    <select name="binary" class="form-select" aria-label="Filter by product binary">
-                      <option value="">Product binary — all</option>
-                      <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>Product binary — on</option>
-                      <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Product binary — off</option>
-                    </select>
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="product-filter-q">Search</label>
+                      <input
+                        type="search"
+                        id="product-filter-q"
+                        name="q"
+                        class="form-control"
+                        value="<?= e($query) ?>"
+                        placeholder="Name or SKU…"
+                      />
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="product-filter-status">Status</label>
+                      <select id="product-filter-status" name="status" class="form-select">
+                        <option value="">All statuses</option>
+                        <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
+                        <option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                      </select>
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="product-filter-unilevel">Repeat purchase</label>
+                      <select id="product-filter-unilevel" name="unilevel" class="form-select">
+                        <option value="">All</option>
+                        <option value="on" <?= $unilevel === 'on' ? 'selected' : '' ?>>On</option>
+                        <option value="off" <?= $unilevel === 'off' ? 'selected' : '' ?>>Off</option>
+                      </select>
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="product-filter-binary">Product binary</label>
+                      <select id="product-filter-binary" name="binary" class="form-select">
+                        <option value="">All</option>
+                        <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>On</option>
+                        <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Off</option>
+                      </select>
+                    </div>
+                    <div class="filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
-                    <a href="<?= e(url('admin/products')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
+                      <a href="<?= e(url('admin/products')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
+                    </div>
                   </form>
                 </div>
 

@@ -222,22 +222,61 @@
   }
 }
 
-/* ---------- List toolbars (products, packages) ---------- */
-.catalog-filter .form-control {
-  flex: 0 1 16rem;
-  width: 16rem;
+/* ---------- Labelled filter fields ---------------------------- */
+/*
+ * UX-17: every filter control carries a `form-label` above it, so the
+ * chosen option never has to explain what it filters on its own. The
+ * field owns its width; the control fills it.
+ */
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 9rem;
+  min-width: 9rem;
+  max-width: 16rem;
 }
 
-.catalog-filter .form-select {
-  flex: 0 1 10rem;
-  width: 10rem;
+.filter-field .form-label {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.35rem;
+}
+
+.filter-field .form-control,
+.filter-field .form-select {
+  width: 100%;
+}
+
+.filter-field-wide {
+  flex: 1.6 1 12rem;
+  max-width: 22rem;
+}
+
+.filter-field-date {
+  flex: 0 1 9.75rem;
+  min-width: 9.75rem;
+}
+
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+}
+
+/* ---------- List toolbars (products, packages) ---------- */
+.catalog-filter .filter-field {
+  max-width: 12rem;
+}
+
+.catalog-filter .filter-field-wide {
+  max-width: 18rem;
 }
 
 @media (max-width: 575.98px) {
-  .catalog-filter .form-control,
-  .catalog-filter .form-select {
+  .catalog-filter .filter-field {
     flex: 1 1 100%;
-    width: 100%;
+    max-width: none;
   }
 }
 

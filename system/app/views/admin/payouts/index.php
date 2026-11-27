@@ -77,23 +77,34 @@ $live = $live ?? [
                       <?= e(money((float) $queue_totals['net'])) ?> net
                     </p>
                   </div>
-                  <form method="GET" action="<?= e($queue_url) ?>" class="d-flex flex-wrap gap-2 wallet-search">
+                  <form method="GET" action="<?= e($queue_url) ?>" class="d-flex flex-wrap align-items-end gap-2 wallet-search">
                     <input type="hidden" name="status" value="<?= e($tab) ?>" />
                     <?= per_page_hidden() ?>
-                    <input
-                      type="search"
-                      name="q"
-                      class="form-control"
-                      value="<?= e($filters['q']) ?>"
-                      placeholder="Member, account or note…"
-                      aria-label="Search payout requests"
-                    />
-                    <input type="date" name="from" class="form-control" value="<?= e($filters['from']) ?>" aria-label="From date" />
-                    <input type="date" name="to" class="form-control" value="<?= e($filters['to']) ?>" aria-label="To date" />
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="payout-filter-q">Search</label>
+                      <input
+                        type="search"
+                        id="payout-filter-q"
+                        name="q"
+                        class="form-control"
+                        value="<?= e($filters['q']) ?>"
+                        placeholder="Member, account or note…"
+                      />
+                    </div>
+                    <div class="filter-field filter-field-date">
+                      <label class="form-label" for="payout-filter-from">From</label>
+                      <input type="date" id="payout-filter-from" name="from" class="form-control" value="<?= e($filters['from']) ?>" />
+                    </div>
+                    <div class="filter-field filter-field-date">
+                      <label class="form-label" for="payout-filter-to">To</label>
+                      <input type="date" id="payout-filter-to" name="to" class="form-control" value="<?= e($filters['to']) ?>" />
+                    </div>
+                    <div class="filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($filters['q'] !== '' || $filters['from'] !== '' || $filters['to'] !== ''): ?>
-                    <a href="<?= e($queue_url . '?status=' . rawurlencode($tab)) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
+                      <a href="<?= e($queue_url . '?status=' . rawurlencode($tab)) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
+                    </div>
                   </form>
                 </div>
 

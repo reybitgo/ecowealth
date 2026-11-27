@@ -69,23 +69,31 @@ $live = $live ?? [
                   <form method="GET" action="<?= e(url('admin/activations')) ?>" class="membership-filters">
                     <?= per_page_hidden() ?>
                     <input type="hidden" name="status" value="<?= e($status) ?>" />
-                    <input
-                      type="search"
-                      class="form-control"
-                      name="q"
-                      value="<?= e($query) ?>"
-                      placeholder="Member, package or reference…"
-                      aria-label="Search activations"
-                    />
-                    <select class="form-select" name="method" aria-label="Filter by payment method">
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="activation-filter-q">Search</label>
+                      <input
+                        type="search"
+                        class="form-control"
+                        id="activation-filter-q"
+                        name="q"
+                        value="<?= e($query) ?>"
+                        placeholder="Member, package or reference…"
+                      />
+                    </div>
+                    <div class="filter-field">
+                      <label class="form-label" for="activation-filter-method">Payment method</label>
+                      <select class="form-select" id="activation-filter-method" name="method">
 <?php foreach ($methods as $value => $label): ?>
-                      <option value="<?= e($value) ?>" <?= $method === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+                        <option value="<?= e($value) ?>" <?= $method === $value ? 'selected' : '' ?>><?= e($label) ?></option>
 <?php endforeach; ?>
-                    </select>
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                      </select>
+                    </div>
+                    <div class="filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($hasFilters): ?>
-                    <a href="<?= e(url('admin/activations')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
+                      <a href="<?= e(url('admin/activations')) ?>" class="btn btn-label-secondary"><i class="icon-base bx bx-x me-1"></i> Clear filters</a>
 <?php endif; ?>
+                    </div>
                   </form>
                 </div>
 
