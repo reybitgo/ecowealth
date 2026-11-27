@@ -38,7 +38,7 @@ final class AdminMemberController
         ['label' => 'Status',  'class' => ''],
         ['label' => 'Rank',    'class' => ''],
         ['label' => 'Harvest', 'class' => ''],
-        ['label' => 'GH',      'class' => 'text-nowrap'],
+        ['label' => 'General Harvest', 'class' => 'text-nowrap'],
         ['label' => 'Wallet',  'class' => 'text-end'],
         ['label' => 'Joined',  'class' => ''],
         ['label' => 'Actions', 'class' => 'text-end'],

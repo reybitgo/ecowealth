@@ -12,6 +12,11 @@ declare(strict_types=1);
  * joined into the list query — and prints `#N` for a queued member and `—`
  * for everyone else. It never recomputes a position from a count (Rule 5).
  *
+ * Phase 21E: the `General Harvest` column prints the member's credited levels
+ * out of the ten that pay, and each cell's title says what the pair counts
+ * (UX-23) — the ten come from `GeneralHarvestLevel::LEVEL_MAX`, never a
+ * literal typed into the view.
+ *
  * @var list<array<string, mixed>> $members
  * @var array{q:string, status:string, package:string, harvest:string, board:string, placement:string} $filters
  */
@@ -59,6 +64,7 @@ foreach (Member::filterDefaults() as $key => $default) {
     $position    = $row['harvest_position'] ?? null;
     $teammates   = (int) ($row['harvest_teammates'] ?? 0);
     $ghLevels    = (int) ($row['gh_credited_levels'] ?? 0);
+    $ghMax       = GeneralHarvestLevel::LEVEL_MAX;
 ?>
                       <tr data-live-key="<?= $id ?>">
                         <td>
@@ -109,10 +115,13 @@ foreach (Member::filterDefaults() as $key => $default) {
                         </td>
                         <td class="text-nowrap">
                           <?php if ($ghLevels === 0): ?>
-                          <span class="text-body-secondary">—</span>
+                          <span class="text-body-secondary" title="No General Harvest levels credited">—</span>
                           <?php else: ?>
-                          <span class="badge bg-label-success">
-                            <?= $ghLevels ?> / 10
+                          <span
+                            class="badge bg-label-success"
+                            title="<?= $ghLevels ?> of <?= $ghMax ?> General Harvest levels credited"
+                          >
+                            <?= $ghLevels ?> / <?= $ghMax ?>
                           </span>
                           <?php endif; ?>
                         </td>

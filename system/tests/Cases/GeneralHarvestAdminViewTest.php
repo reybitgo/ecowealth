@@ -299,6 +299,22 @@ return [
         assert_same(13, (int) ($frontier[0]['rows'] ?? -1), 'level 1 frontier rows');
         assert_same(4,  (int) ($frontier[1]['rows'] ?? -1), 'level 2 frontier rows');
         assert_same(1,  (int) ($frontier[2]['rows'] ?? -1), 'level 3 frontier rows');
+
+        /* UX-23: the column names the stream instead of the abbreviation, and
+         * both cell states say what N / 10 counts. */
+        assert_contains('<th class="text-nowrap">General Harvest</th>', $page['html'], 'the column is spelled out');
+        assert_not_contains('<th class="text-nowrap">GH</th>', $page['html'], 'the bare abbreviation is gone');
+
+        $paid = $membersPage(['board' => 'paid']);
+        assert_true(
+            (bool) preg_match('/title="\d+ of 10 General Harvest levels credited"/', $paid['html']),
+            'a credited cell explains what N / 10 counts'
+        );
+        assert_contains(
+            'title="No General Harvest levels credited"',
+            $page['html'],
+            'a member with no credited level explains the dash'
+        );
     },
 
     /* ==========================================================

@@ -1964,7 +1964,8 @@ Read-only surfaces over rows 21D already writes:
   (credited, baseline, open liability, unsettled positions), the always-ten-row level distribution,
   filters (level, status, dates, member, search), paginated rows with wallet links, and the
   `general_harvest.export` CSV audit row.
-- `/admin/members` — the `GH` column (`N / 10` credited levels for node holders), the `?board=paid\|none`
+- `/admin/members` — the `General Harvest` column (`N / 10` credited levels for node holders, each cell
+  titled with what the pair counts), the `?board=paid\|none`
   filter, and the board card with the frontier (`settled_n`, `N`, per-level next completion) and the
   open liability `boardTotal(N) − boardTotal(settled_n)`.
 - `/admin/members/{id}` — the member's board panel: position, node, settled state, the ten-cell grid
