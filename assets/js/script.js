@@ -1,4 +1,4 @@
-// Eco-wealth landing page behaviour, moved out of index.html.
+// EcoWealth landing page behaviour, moved out of index.html.
 
 (() => {
   const doc = document;
@@ -10,7 +10,7 @@
     "(prefers-reduced-motion: reduce)",
   ).matches;
 
-  // Slowly and independently shift orbit-dot hues within each Eco-wealth color family.
+  // Slowly and independently shift orbit-dot hues within each EcoWealth color family.
   // Each dot gets its own randomized first delay and a longer randomized interval thereafter.
   if (!reducedMotion) {
     const orbitPalettes = {

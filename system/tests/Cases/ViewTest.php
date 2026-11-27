@@ -381,6 +381,44 @@ return [
         assert_not_contains('PHP ' . PHP_VERSION, $html);
     },
 
+    'UX-30 the brand is spelled EcoWealth everywhere' => function (): void {
+        $root  = dirname(__DIR__, 2);
+        $files = glob($root . '/public/*.php') ?: [];
+
+        foreach (['/app/views', '/app/layout'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root . $directory)
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $files[] = $file->getPathname();
+                }
+            }
+        }
+
+        $offenders = [];
+
+        foreach ($files as $file) {
+            if (stripos((string) file_get_contents($file), 'eco-wealth') !== false) {
+                $offenders[] = str_replace($root . '/', '', $file);
+            }
+        }
+
+        assert_same([], $offenders, 'only the configured spelling is used in the templates');
+
+        assert_contains(
+            'alt="EcoWealth"',
+            (string) file_get_contents($root . '/app/layout/logo.php'),
+            'the logo alt is the configured brand'
+        );
+        assert_contains(
+            'Welcome to ' . APP_NAME . '!',
+            (string) file_get_contents($root . '/public/login.php'),
+            'the sign-in heading is the configured brand'
+        );
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',

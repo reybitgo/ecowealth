@@ -1,6 +1,6 @@
 <?php
 /**
- * Eco-wealth brand logo.
+ * EcoWealth brand logo.
  *
  * The artwork is the marketing site's logo (assets/logo.png), copied into
  * public/assets/img/ecowealth-logo.png so the app ships with it. When
@@ -17,7 +17,7 @@ $brand_mark        = (bool) ($brand_mark ?? false);
 <span class="app-brand-logo demo">
   <img
     src="<?= e(url('assets/img/ecowealth-logo.png')) ?>"
-    alt="Eco-wealth"
+    alt="EcoWealth"
     class="app-brand-img"
     style="height: <?= $brand_logo_height ?>px; width: auto;"
   >

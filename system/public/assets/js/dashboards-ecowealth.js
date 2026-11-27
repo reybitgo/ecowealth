@@ -1,5 +1,5 @@
 /**
- * Eco-wealth — Growth overview widgets
+ * EcoWealth — Growth overview widgets
  * ------------------------------------
  * Boots the community-growth chart and the members DataTable from the
  * payload printed by dashboard.php (window.ECOWEALTH_DASH).
@@ -174,7 +174,7 @@
       }
     } catch (error) {
       /* A plain table is still perfectly readable without the plugin. */
-      console.warn('[eco-wealth] DataTables init skipped:', error);
+      console.warn('[ecowealth] DataTables init skipped:', error);
     }
 
     /* Navbar search filters the community table instead of navigating away. */

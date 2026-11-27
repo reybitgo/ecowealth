@@ -63,7 +63,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 **Expected**
 
 - The address bar now ends with `/login`.
-- The page shows **“Welcome to Eco-wealth! 👋”** and “Please sign-in to your account and start the
+- The page shows **“Welcome to EcoWealth! 👋”** and “Please sign-in to your account and start the
   adventure”.
 - A **Demo account** box is visible with `admin` / `Admin@123`.
 - Email/Username, Password, Remember Me and a **Login** button are present.
