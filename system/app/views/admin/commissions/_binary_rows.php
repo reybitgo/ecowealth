@@ -57,11 +57,11 @@ $dueAt = static function (array $award): ?int {
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-link-external',
-        'title'        => $hasFilters ? 'No Product Binary awards match these filters' : 'No Product Binary has been paid',
+        'title'        => $hasFilters ? 'No Product binary awards match these filters' : 'No Product binary has been paid',
         'text'         => $hasFilters
             ? 'Try a different kind, status, side, product, source or date range.'
             : 'Turn the stream on in Settings, flag a product with a P.V., and place it on the binary tree. '
-                . 'Only a paid order pays the binary bonus, and only when both switches are on. '
+                . 'Only a paid order pays the product binary, and only when both switches are on. '
                 . 'Package activations also pay when the package binary switch is on.',
         'action_href'  => $hasFilters ? 'admin/commissions?ledger=binary' : 'admin/settings',
         'action_label' => $hasFilters ? 'Clear filters' : 'Open settings',

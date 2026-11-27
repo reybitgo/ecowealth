@@ -366,8 +366,8 @@ return [
         $html = $commissions();
 
         assert_contains('Product binary readiness', $html);
-        assert_contains('Binary on, no points', $html);
-        assert_contains('Binary off', $html);
+        assert_contains('Product binary on, no points', $html);
+        assert_contains('Product binary off', $html);
         assert_contains((string) $expectedZero, $html);
         assert_contains((string) $expectedOff, $html);
 

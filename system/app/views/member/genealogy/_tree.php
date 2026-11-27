@@ -32,7 +32,7 @@ $statusBadge = static function (string $status): string {
 ?>
 <ul
     role="tree"
-    aria-label="Binary placement tree"
+    aria-label="Binary tree"
     class="binary-tree-list list-unstyled mb-0"
     data-tree-root="<?= (int) $root_id ?>"
     data-tree-depth="<?= (int) $depth ?>"

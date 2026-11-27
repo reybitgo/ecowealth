@@ -67,7 +67,7 @@ $hasFilters = $query !== '' || $status !== '';
                         <td class="text-end text-nowrap">
 <?php if ($binaryOn): ?>
                           <span class="badge bg-label-<?= $binaryPts > 0 ? 'success' : 'warning' ?>">
-                            Binary <?= $binaryPts ?> pts
+                            Package binary <?= $binaryPts ?> pts
                           </span>
 <?php else: ?>
                           <span class="badge bg-label-secondary">—</span>

@@ -83,7 +83,7 @@ $hasFilters = (string) $filters['status'] !== ''
     $processedAt  = (string) ($activation['binary_processed_at'] ?? '');
     if ($processedAt !== '' || $binaryPoints > 0 || $binaryTotal > 0.0): ?>
                           <div class="member-meta activation-note">
-                            Binary: <?= e(number_format($binaryPoints, 0, '.', '')) ?> pts ·
+                            Package binary: <?= e(number_format($binaryPoints, 0, '.', '')) ?> pts ·
                             <?= e(money($binaryTotal)) ?> ·
                             <?= $processedAt !== '' ? e(format_date($processedAt)) : 'not processed' ?>
                           </div>

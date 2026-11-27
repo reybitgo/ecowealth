@@ -1590,7 +1590,7 @@
     /* Make the tree container itself reachable by Tab. */
     svgWrap.setAttribute('tabindex', '0');
     svgWrap.setAttribute('role', 'tree');
-    svgWrap.setAttribute('aria-label', 'Binary placement tree');
+    svgWrap.setAttribute('aria-label', 'Binary tree');
 
     resetIndex();
     indexNodes(tree);

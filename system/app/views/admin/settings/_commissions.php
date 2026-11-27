@@ -409,14 +409,14 @@ $pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0')
                         <div class="card-body py-3">
                           <div class="row g-3">
                             <div class="col-md-3">
-                              <p class="text-body-secondary small mb-1">Binary on, no points</p>
+                              <p class="text-body-secondary small mb-1">Product binary on, no points</p>
                               <strong class="d-block"><?= $onZeroPv ?></strong>
                               <p class="text-body-secondary small mb-0">
                                 <?= $onZeroPv === 0 ? 'All flagged products earn points.' : sprintf('<a href="%s">%s product(s) flagged but earn 0 points — set a P.V. or switch them off.</a>', e(url('admin/products?binary=on')), $onZeroPv); ?>
                               </p>
                             </div>
                             <div class="col-md-3">
-                              <p class="text-body-secondary small mb-1">Binary off</p>
+                              <p class="text-body-secondary small mb-1">Product binary off</p>
                               <strong class="d-block"><?= $off ?></strong>
                               <p class="text-body-secondary small mb-0">
                                 <?= $off === 0 ? 'Every product places points.' : sprintf('<a href="%s">%s product(s) do not place points.</a>', e(url('admin/products?binary=off')), $off); ?>
@@ -520,14 +520,14 @@ $pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0')
                         <div class="card-body py-3">
                           <div class="row g-3">
                             <div class="col-md-3">
-                              <p class="text-body-secondary small mb-1">Binary on, no points</p>
+                              <p class="text-body-secondary small mb-1">Package binary on, no points</p>
                               <strong class="d-block"><?= $onZeroPts ?></strong>
                               <p class="text-body-secondary small mb-0">
                                 <?= $onZeroPts === 0 ? 'All flagged packages earn points.' : sprintf('<a href="%s">%s package(s) flagged but earn 0 points — set points or switch them off.</a>', e(url('admin/packages?binary=on')), $onZeroPts); ?>
                               </p>
                             </div>
                             <div class="col-md-3">
-                              <p class="text-body-secondary small mb-1">Binary off</p>
+                              <p class="text-body-secondary small mb-1">Package binary off</p>
                               <strong class="d-block"><?= $pkgOff ?></strong>
                               <p class="text-body-secondary small mb-0">
                                 <?= $pkgOff === 0 ? 'Every package places points.' : sprintf('<a href="%s">%s package(s) do not place points.</a>', e(url('admin/packages?binary=off')), $pkgOff); ?>

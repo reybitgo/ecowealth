@@ -113,7 +113,7 @@ $percentLabel = static function (float $value): string {
 <?php if ((int) ($product['binary_enabled'] ?? 0) === 1): ?>
                                 <?php $binaryPoints = (int) (($binaryStatus[$id]['points'] ?? 0)); ?>
                                 <span class="badge bg-label-<?= $binaryPoints > 0 ? 'success' : 'warning' ?> mt-1">
-                                  Binary <?= $binaryPoints ?> pts
+                                  Product binary <?= $binaryPoints ?> pts
                                 </span>
 <?php endif; ?>
                               </div>

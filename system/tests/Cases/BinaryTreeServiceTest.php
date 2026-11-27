@@ -398,7 +398,7 @@ return [
 
         /* No-JS semantic list. */
         assert_contains('role="tree"', $html);
-        assert_contains('aria-label="Binary placement tree"', $html);
+        assert_contains('aria-label="Binary tree"', $html);
         assert_contains('binary-tree-node', $html);
         assert_contains('aria-level=', $html);
         assert_contains('@maria', $html);

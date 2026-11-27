@@ -2118,7 +2118,7 @@ The single settings surface is **System → Settings → Commissions → Product
 
 `binary_ledger_since` is the reconciliation baseline written by migration 026; it is never operator-editable.
 
-**Product card** (`/admin/products/{id}/edit`): the *Product binary* card sits after the *Unilevel repeat-purchase bonus* card. The switch flags the product; the readout shows `P.V. → N points per unit` (`ROUND(pv)`). A product with the switch on and `pv = 0` is refused (*Give the product a P.V. or turn its binary switch off.*). The list badge reads `Binary N pts` (on) or nothing (off), and the `?binary=on|off` filter splits the list. There is **no** per-product pair size, pair rate or self rate — those are global (D-09).
+**Product card** (`/admin/products/{id}/edit`): the *Product binary* card sits after the *Unilevel repeat-purchase bonus* card. The switch flags the product; the readout shows `P.V. → N points per unit` (`ROUND(pv)`). A product with the switch on and `pv = 0` is refused (*Give the product a P.V. or turn its binary switch off.*). The list badge reads `Product binary N pts` (on) or nothing (off), and the `?binary=on|off` filter splits the list. There is **no** per-product pair size, pair rate or self rate — those are global (D-09).
 
 **Readiness panel** (same card, read-only): four counts — products flagged on with P.V. 0, products flagged off, the global switch (On/Off), and the preset check (*1,000 points per pair pays ₱100.00 at 10%.*). Each count links to the filtered product list; none changes a setting.
 

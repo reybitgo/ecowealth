@@ -1176,6 +1176,10 @@ The Product binary bonus pays a member from the points their own repeat purchase
 team's purchases place on the two sides of a placement tree (22C), matching left against right into
 pairs (22D), plus a Self Bonus on the buyer's own purchase.
 
+**Terms.** *Product binary* is the payout program on paid orders; *Package binary* is the separate
+stream on package activations; *Binary tree* is the placement view; *Binary placement* is the act of
+placing a member on a side.
+
 **Phase 22B only configures the stream.** The master switch is off, no product is flagged, no member
 has a node yet, and **no money moves**. Placement, the money engine, the member pages and the tree
 arrive in 22C–22D.
@@ -1205,15 +1209,15 @@ The **Product binary** card sits after the *Unilevel repeat-purchase bonus* card
 - The switch flags the product for binary points.
 - The readout shows `P.V. → N points per unit` (`ROUND(pv)`), and the self/pair sentence names the global preset.
 - A switch-on product with `pv = 0` is refused: *"Give the product a P.V. or turn its binary switch off."*
-- The list badge reads `Binary N pts` (on) or nothing (off), and `?binary=on|off` splits the list.
+- The list badge reads `Product binary N pts` (on) or nothing (off), and `?binary=on|off` splits the list.
 - There is **no** per-product pair size, pair rate or self rate — those are global (D-09).
 
 ### Product binary readiness (read-only)
 
 The same settings card gains a **Product binary readiness** panel with four counts:
 
-1. **Binary on, no points** — products flagged on with `pv = 0`. Links to `/admin/products?binary=on`.
-2. **Binary off** — products with the switch off. Links to `/admin/products?binary=off`.
+1. **Product binary on, no points** — products flagged on with `pv = 0`. Links to `/admin/products?binary=on`.
+2. **Product binary off** — products with the switch off. Links to `/admin/products?binary=off`.
 3. **Global switch** — On / *The stream is off. Nothing is paid.*
 4. **Preset check** — *1,000 points per pair pays ₱100.00 at 10%.* (recomputed when the pair values change).
 
@@ -1333,7 +1337,7 @@ The **Package binary** card sits after the referral ladder:
 - The points field suggests `ROUND(product_value)` as a prefill but ships empty/0; the operator saves what they mean.
 - A switch-on package with `binary_points = 0` is refused: *"Give the package points or turn its binary switch off."*
 - Points are whole numbers, 0–1,000,000; a decimal is refused.
-- The list badge reads `Binary N pts` (on) or nothing (off), and `?binary=on|off` splits the list.
+- The list badge reads `Package binary N pts` (on) or nothing (off), and `?binary=on|off` splits the list.
 - There is **no** per-package pair size, pair rate, cap or hold input — those are global (D-06).
 
 ### Package binary readiness (read-only)
@@ -1394,7 +1398,7 @@ activations place no points here*.
 ### Admin → Activations
 
 Each activation row in the queue now shows its binary outcome when processed:
-`Binary: N pts · ₱m.m0 · Mmm d` (points placed, money paid, processed date). Below the table,
+`Package binary: N pts · ₱m.m0 · Mmm d` (points placed, money paid, processed date). Below the table,
 every processed activation renders a **Package binary** card:
 
 - Points placed and pairs paid

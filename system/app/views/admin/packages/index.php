@@ -74,11 +74,11 @@ $live = $live ?? [
                       </select>
                     </div>
                     <div class="filter-field">
-                      <label class="form-label" for="package-filter-binary">Binary</label>
+                      <label class="form-label" for="package-filter-binary">Package binary</label>
                       <select id="package-filter-binary" name="binary" class="form-select">
                         <option value="">All</option>
-                        <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>Binary on</option>
-                        <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Binary off</option>
+                        <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>On</option>
+                        <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Off</option>
                       </select>
                     </div>
                     <div class="filter-actions">
@@ -101,7 +101,7 @@ $live = $live ?? [
                         <th scope="col" class="text-end">Levels 2–10</th>
                         <th scope="col" class="text-end">Contents</th>
                         <th scope="col">Status</th>
-                        <th scope="col" class="text-end">Binary</th>
+                        <th scope="col" class="text-end">Package binary</th>
                         <th scope="col" class="text-end">Actions</th>
                       </tr>
                     </thead>

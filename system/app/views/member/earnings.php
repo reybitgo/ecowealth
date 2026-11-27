@@ -34,7 +34,7 @@ declare(strict_types=1);
  *                            amount each level pays, the next block's
  *                            progress and how far the queue still has to
  *                            grow, the paginated award rows and the CSV.
- *   Binary bonus             the product binary: the self bonus, pairs,
+ *   Product binary           the payout program: the self bonus, pairs,
  *                            team points and one row per award.
  *
  * The package tab is the Phase 10–11 statement, unchanged below the
@@ -316,7 +316,7 @@ $moreStatements = [
     ['value' => 'general_harvest', 'url' => $general_harvest_url, 'tab' => 'general_harvest', 'label' => 'General Harvest', 'icon' => 'bx-grid-alt'],
 ];
 if (BinaryService::enabled()) {
-    $moreStatements[] = ['value' => 'binary', 'url' => $binary_url, 'tab' => 'binary', 'label' => 'Binary bonus', 'icon' => 'bx-git-branch'];
+    $moreStatements[] = ['value' => 'binary', 'url' => $binary_url, 'tab' => 'binary', 'label' => 'Product binary', 'icon' => 'bx-git-branch'];
 }
 $activeMore = null;
 foreach ($moreStatements as $moreStatement) {

@@ -196,7 +196,7 @@ if ($binary_unavailable === '') {
 
                 <div class="card">
                   <div class="card-header d-flex align-items-center justify-content-between gap-2">
-                    <h5 class="card-title mb-0">Binary placement tree</h5>
+                    <h5 class="card-title mb-0">Binary tree</h5>
                     <span class="badge rounded-pill bg-label-<?= $isAdmin ? 'info' : 'primary' ?>">
                       <?= $isAdmin ? 'Admin view' : 'Your tree' ?>
                     </span>

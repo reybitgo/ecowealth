@@ -95,7 +95,7 @@ $rowNote = static function (array $award) use ($releaseEnabled): string {
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-git-branch',
-        'title'        => $hasFilters ? 'No awards match these filters' : 'No Binary bonus awards yet',
+        'title'        => $hasFilters ? 'No awards match these filters' : 'No Product binary awards yet',
         'text'         => $hasFilters
             ? 'Try a different kind, status, side, product, source or date range.'
             : 'Your Self Bonus and your team’s pairs appear here once an order is paid. The awards '

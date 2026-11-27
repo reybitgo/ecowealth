@@ -10,10 +10,10 @@ declare(strict_types=1);
 ?>
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3" data-live-region="binary-header">
                   <div>
-                    <h5 class="mb-1">Product Binary ledger</h5>
+                    <h5 class="mb-1">Product binary ledger</h5>
                     <p class="text-body-secondary mb-0 small">
-                      Every award a paid order or an approved package activation earned in the Binary
-                      stream — a self award paid to the buyer or a pair award paid at a node. Credited,
+                      Every award a paid order or an approved package activation earned in the product binary and package binary
+                      streams — a self award paid to the buyer or a pair award paid at a node. Credited,
                       pending, cancelled or voided. The Source column tells which stream paid each row.
                     </p>
                   </div>

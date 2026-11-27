@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-29, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-31, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -349,6 +349,8 @@ Evidence in user-visible labels:
 
 **Impact:** a member reading the dashboard, earnings and genealogy could reasonably conclude these are different programs.
 **Fix:** define a small glossary and use one term per concept: **Product binary** (the payout program), **Binary tree** (the placement view), **Binary placement** (the act/setting). Keep "Binary bonus" only if it is officially a separate stream; otherwise rename the tab.
+
+**Status:** Fixed — the binary payout program now has one name per concept, recorded as a glossary in `docs/admin-guide.md` (§24): **Product binary** is the payout program, **Package binary** is the separate package-activation stream, **Binary tree** is the placement view and **Binary placement** is the act/setting. The member earnings tab, its card heading and its empty state read **Product binary** (was "Binary bonus"), so the dashboard tile, the statement and the shop order/checkout cards name the same program; the package card inside the statement is unchanged. The genealogy card title and the no-JS tree's accessible name read **Binary tree** (was "Binary placement tree"), matching the view switcher. The back office lost its bare "Binary" labels: the product list badge reads "Product binary N pts", the package filter, column and badges read "Package binary", the activation row reads "Package binary: …", and the two readiness panels say "Product binary on/off" and "Package binary on/off"; the commissions tab, ledger heading and empty state use "Product binary" (was "Product Binary"), and the ledger copy names both streams. `system/README.md` and `docs/admin-guide.md`'s badge and readiness sentences follow. `ViewTest`'s new `UX-31` case sweeps every template for the retired labels and pins the earnings tab, statement heading, tree title and package filter/column; the binary suites' label expectations were updated. `php -l` passes on every changed PHP file; the `ViewTest` filter run (330 cases, including the new case), `MemberBinaryPackage` (6), `MemberBinaryEarnings` (14), `MemberBinaryDashboard` (6), `AdminCommissionLive` (36), `BinarySettings` (12), `PackageBinary` (77), `BinaryTreeService` (48), `MemberGenealogyLive` (10) and `BinaryProduct` (12) pass on 27 November 2026. No browser pass was made.
 
 ### UX-32 — "Repeat bonus" vs "Repeat-purchase bonus" (Low)
 

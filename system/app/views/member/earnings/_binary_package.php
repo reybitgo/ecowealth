@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Member Binary bonus tab — the Package activations card (23E-S1,
+ * Member Product binary tab — the Package activations card (23E-S1,
  * plan §12.11, Appendix C.4).
  *
  * Downward-only copy: names the member's own package and their own

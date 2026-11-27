@@ -402,7 +402,7 @@ return [
             $html = (string) ob_get_clean();
         }
 
-        assert_contains('Binary bonus', $html);
+        assert_contains('Product binary', $html);
         assert_contains('Package activations', $html);
         assert_contains('Source', $html);
         assert_not_contains('upline', strtolower($html));

@@ -419,6 +419,67 @@ return [
         );
     },
 
+    'UX-31 the binary program uses one term per concept' => function (): void {
+        $root  = dirname(__DIR__, 2);
+        $files = [];
+
+        foreach (['/app/views', '/app/layout'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root . $directory)
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $files[] = $file->getPathname();
+                }
+            }
+        }
+
+        $offenders = [];
+
+        foreach ($files as $file) {
+            $source = (string) file_get_contents($file);
+            $name   = str_replace($root . '/', '', $file);
+
+            /* "Product binary" and "Package binary" are the payout programs;
+             * "Binary bonus" is neither, and the placement view is a tree. */
+            if (preg_match('/(?<!Product )(?<!Package )Binary bonus/', $source) === 1) {
+                $offenders[] = $name . ': Binary bonus';
+            }
+
+            if (str_contains($source, 'Binary placement tree')) {
+                $offenders[] = $name . ': Binary placement tree';
+            }
+
+            if (preg_match('/>Binary</', $source) === 1) {
+                $offenders[] = $name . ': bare Binary label';
+            }
+        }
+
+        assert_same([], $offenders, 'one term per concept in every template');
+
+        $memberEarnings = (string) file_get_contents($root . '/app/views/member/earnings.php');
+        assert_contains("'label' => 'Product binary'", $memberEarnings, 'the earnings tab names the payout program');
+
+        assert_contains(
+            '<h5 class="mb-1">Product binary</h5>',
+            (string) file_get_contents($root . '/app/views/member/earnings/_binary_header.php'),
+            'the statement heading names the payout program'
+        );
+
+        $genealogy = (string) file_get_contents($root . '/app/views/member/genealogy.php');
+        assert_contains('<h5 class="card-title mb-0">Binary tree</h5>', $genealogy, 'the placement view is a binary tree');
+        assert_contains(
+            'aria-label="Binary tree"',
+            (string) file_get_contents($root . '/app/views/member/genealogy/_tree.php'),
+            'the no-JS tree carries the same name'
+        );
+
+        $packages = (string) file_get_contents($root . '/app/views/admin/packages/index.php');
+        assert_contains('for="package-filter-binary">Package binary</label>', $packages, 'the package filter names the package binary');
+        assert_contains('<th scope="col" class="text-end">Package binary</th>', $packages, 'the package column names the package binary');
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',

@@ -522,8 +522,8 @@ return [
         $html = $commissionsCard();
 
         assert_contains('Package binary readiness', $html);
-        assert_contains('Binary on, no points', $html);
-        assert_contains('Binary off', $html);
+        assert_contains('Package binary on, no points', $html);
+        assert_contains('Package binary off', $html);
         assert_contains((string) $expectedZero, $html);
         assert_contains((string) $expectedOff, $html);
 

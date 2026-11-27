@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /* ==============================================================
  *  MemberBinaryPackageTest — Phase 23E-S1 (plan §7 Phase 23E)
- *  Tests P23E-T1 … T5, T8: the Binary bonus tab, the package card,
+ *  Tests P23E-T1 … T5, T8: the Product binary tab, the package card,
  *  the source-aware stats and rows, the Source column, the copy guard.
  *
  *  Fixture tree (company root = existing `admin`, placed under its free
@@ -213,11 +213,11 @@ $createProduct = static function (string $name, string $sku, float $price, float
 return [
 
     /* ==========================================================
-     *  P23E-T1 — /earnings?ledger=binary reads "Binary bonus" with
+     *  P23E-T1 — /earnings?ledger=binary reads "Product binary" with
      *  package card, source split and Source column
      *  ========================================================== */
 
-    'P23E-T1 the binary tab reads Binary bonus with package card and Source column' => function () use (
+    'P23E-T1 the binary tab reads Product binary with package card and Source column' => function () use (
         $buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem, $payAndStamp,
         $createPackage
     ): void {
@@ -250,7 +250,7 @@ return [
         $data       = $controller->binaryContext((int) $tree['buyerA']['id']);
 
         assert_same(EarningsController::TAB_BINARY, $data['tab']);
-        assert_same('Binary bonus', 'Binary bonus', 'tab label constant');
+        assert_same('binary', EarningsController::TAB_BINARY, 'the tab URL value stays binary');
         assert_true(array_key_exists('package_card', $data));
         assert_true(array_key_exists('source_options', $data));
         assert_true(array_key_exists('stats', $data));
@@ -268,10 +268,10 @@ return [
             $html = (string) ob_get_clean();
         }
 
-        assert_contains('Binary bonus', $html);
+        assert_contains('Product binary', $html);
         assert_contains('aria-current="page"', $html, 'the binary tab pill is active');
         assert_contains('Source', $html, 'the Source column header is present');
-        assert_not_contains('Product binary', $html);
+        assert_contains('Package activations', $html, 'the package card sits in the same statement');
 
         /* D-22: no upline, no sponsor, no ancestor, no "Team chain", no level. */
         assert_not_contains('upline', $html);
@@ -443,7 +443,7 @@ return [
         }
 
         assert_not_contains('Package A', $html);
-        assert_contains('Binary bonus', $html);
+        assert_contains('Product binary', $html);
     },
 
     /* ==========================================================
@@ -556,7 +556,7 @@ return [
             $html = (string) ob_get_clean();
         }
 
-        assert_contains('Binary bonus', $html);
+        assert_contains('Product binary', $html);
         assert_not_contains('Package A', $html, 'no package card when no binary package');
         assert_contains('Package activations', $html, 'stats card label present even at 0');
     },

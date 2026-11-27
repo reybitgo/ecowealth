@@ -33,7 +33,7 @@ $nothingPlaced = $hasBinary && $binaryPoints === 0 && $binaryTotal === 0.0;
 $reason = '';
 if ($nothingPlaced) {
     if ((string) ($activation['status'] ?? '') !== 'approved') {
-        $reason = 'Not approved — no binary volume placed.';
+        $reason = 'Not approved — no package binary volume placed.';
     } elseif ((int) ($activation['binary_points'] ?? 0) === 0) {
         $reason = 'No points were placed: the package is not binary-enabled or contributes 0 points.';
     } else {

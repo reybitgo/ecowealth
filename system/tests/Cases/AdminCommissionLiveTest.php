@@ -1069,8 +1069,8 @@ return [
         $page = $ledgerPage(['ledger' => 'binary']);
 
         assert_same('binary', (string) $page['data']['tab'], 'the binary tab is selected');
-        assert_contains('Product Binary ledger', $page['html'], 'the binary card heading renders');
-        assert_contains('No Product Binary has been paid', $page['html'], 'the empty state teaches');
+        assert_contains('Product binary ledger', $page['html'], 'the binary card heading renders');
+        assert_contains('No Product binary has been paid', $page['html'], 'the empty state teaches');
         assert_contains('Turn the stream on in Settings', $page['html'], 'the empty names the two switches');
         assert_contains('Export CSV', $page['html'], 'the export button renders');
         assert_contains('admin/commissions?ledger=binary', $page['html'], 'the export URL names the tab');
@@ -1121,7 +1121,7 @@ return [
 
         /* kind=pair filter: no pair rows yet, so zero rows */
         $pairPage = $ledgerPage(['ledger' => 'binary', 'kind' => 'pair']);
-        assert_contains('No Product Binary awards match', $pairPage['html'], 'kind=pair shows empty when no pairs');
+        assert_contains('No Product binary awards match', $pairPage['html'], 'kind=pair shows empty when no pairs');
 
         /* kind=self filter: one self row */
         $selfPage = $ledgerPage(['ledger' => 'binary', 'kind' => 'self']);
@@ -1141,7 +1141,7 @@ return [
 
         /* side=right filter: no rows */
         $rightPage = $ledgerPage(['ledger' => 'binary', 'side' => 'right']);
-        assert_contains('No Product Binary awards match', $rightPage['html'], 'side=right shows empty when no right rows');
+        assert_contains('No Product binary awards match', $rightPage['html'], 'side=right shows empty when no right rows');
 
         /* product filter */
         $prodPage = $ledgerPage(['ledger' => 'binary', 'product_id' => (string) (int) $product['id']]);

@@ -392,7 +392,7 @@ $headerDescription = match (true) {
                     class="nav-link<?= $isBinary ? ' active' : '' ?>"
 <?= $isBinary ? ' aria-current="page"' : '' ?>
                   >
-                    <i class="icon-base bx bx-link-external me-1"></i> Product Binary
+                    <i class="icon-base bx bx-link-external me-1"></i> Product binary
                   </a>
                 </li>
               </ul>
