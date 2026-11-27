@@ -1,0 +1,50 @@
+UX-34 — pinch-zoom on the live layouts
+27 November 2026 · headless Chrome 158.0.8127.37 (DevTools protocol)
+390 × 844 mobile emulation, deviceScaleFactor 3
+
+Method
+  Open the page, read window.visualViewport.scale, dispatch a real two-finger
+  touch pinch through Input.dispatchTouchEvent (touchStart with two points,
+  eight touchMove pairs spreading 16 px per step, touchEnd), then read the
+  scale again. The control page carries the old app viewport
+  "width=device-width, initial-scale=1.0, user-scalable=no,
+  minimum-scale=1.0, maximum-scale=1.0" to prove the gesture is sensitive to
+  the removed cap.
+
+Results
+  [
+    {
+      "label": "login",
+      "url": "http://127.0.0.1:8080/login",
+      "beforeScale": 1,
+      "afterScale": 5,
+      "viewportMeta": "width=device-width, initial-scale=1",
+      "docWidth": 390,
+      "title": "Sign in | EcoWealth"
+    },
+    {
+      "label": "404",
+      "url": "http://127.0.0.1:8080/ux-34-no-such-page",
+      "beforeScale": 1,
+      "afterScale": 5,
+      "viewportMeta": "width=device-width, initial-scale=1",
+      "docWidth": 390,
+      "title": "EcoWealth | EcoWealth"
+    },
+    {
+      "label": "control",
+      "url": "data: page with the old app viewport",
+      "beforeScale": 1,
+      "afterScale": 1,
+      "viewportMeta": "width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0",
+      "docWidth": 390,
+      "title": ""
+    }
+  ]
+
+Reading
+  The auth page (/login) and the app layout (404, served through
+  app_header.php) both zoom under a real pinch; the same pinch on the old
+  viewport does not move the scale, so the result comes from the change and
+  not from the harness. Screenshots of the same two pages at 390 px:
+  ux-34-login-390.png and ux-34-dashboard-390.png.
