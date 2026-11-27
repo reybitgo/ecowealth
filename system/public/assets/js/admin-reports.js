@@ -8,6 +8,11 @@
  * card it dispatches `ecowealth:live-applied` with the new chart data;
  * this script destroys the old ApexCharts instance and renders the new
  * one. Without ApexCharts the card keeps its table and totals.
+ *
+ * It also drives the section menu (UX-14): the ten report families sit on
+ * one page, so the shared `.section-nav` bar jumps to a family and keeps
+ * the link for the section in view active. Plain anchors work without
+ * this script; the CSS scroll-margin keeps a jump clear of the sticky bar.
  */
 (function () {
   'use strict';
@@ -137,4 +142,185 @@
   });
 
   window.EcoWealthReports = { render: render };
+})();
+
+/* ---------- Section menu (UX-14) ---------- */
+(function () {
+  'use strict';
+
+  var root = document.querySelector('[data-report-sections]');
+
+  if (!root) {
+    return;
+  }
+
+  var links = Array.prototype.slice.call(root.querySelectorAll('[data-report-section]'));
+  var sections = links
+    .map(function (link) {
+      var section = document.getElementById(link.getAttribute('data-report-section'));
+
+      return section ? { link: link, section: section } : null;
+    })
+    .filter(Boolean);
+
+  if (sections.length === 0) {
+    return;
+  }
+
+  var list = root.querySelector('.reports-tab-list');
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var navbar = document.getElementById('layout-navbar');
+  var active = null;
+
+  /* Keep the selected link inside the horizontally scrolling strip. */
+  var reveal = function (link) {
+    if (!list || list.scrollWidth <= list.clientWidth) {
+      return;
+    }
+
+    var linkRect = link.getBoundingClientRect();
+    var listRect = list.getBoundingClientRect();
+
+    if (linkRect.left < listRect.left) {
+      list.scrollLeft -= listRect.left - linkRect.left + 12;
+    } else if (linkRect.right > listRect.right) {
+      list.scrollLeft += linkRect.right - listRect.right + 12;
+    }
+  };
+
+  var setActive = function (link) {
+    if (active === link) {
+      return;
+    }
+
+    active = link;
+
+    links.forEach(function (item) {
+      var selected = item === link;
+
+      item.classList.toggle('active', selected);
+
+      if (selected) {
+        item.setAttribute('aria-current', 'location');
+      } else {
+        item.removeAttribute('aria-current');
+      }
+    });
+
+    reveal(link);
+  };
+
+  /* Everything above this line is the fixed navbar plus the sticky bar,
+   * so the first section whose top has crossed it is the active one. */
+  var readingLine = function () {
+    var navbarBottom = navbar ? navbar.getBoundingClientRect().bottom : 0;
+    var tabsHeight = root.getBoundingClientRect().height;
+    var sticky = window.getComputedStyle(root).position === 'sticky';
+
+    return navbarBottom + (sticky ? tabsHeight : 0) + 24;
+  };
+
+  var sync = function () {
+    var line = readingLine();
+    var current = sections[0];
+
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].section.getBoundingClientRect().top > line) {
+        break;
+      }
+
+      current = sections[i];
+    }
+
+    /* The short last section may never reach the line; still select it
+     * once the page is scrolled to the bottom. */
+    var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+
+    if (atBottom) {
+      current = sections[sections.length - 1];
+    }
+
+    setActive(current.link);
+  };
+
+  var goTo = function (link, updateHash, moveFocus) {
+    var section = document.getElementById(link.getAttribute('data-report-section'));
+
+    if (!section) {
+      return;
+    }
+
+    section.scrollIntoView({
+      behavior: reducedMotion.matches ? 'auto' : 'smooth',
+      block: 'start'
+    });
+
+    if (moveFocus) {
+      section.setAttribute('tabindex', '-1');
+      section.focus({ preventScroll: true });
+    }
+
+    if (updateHash && window.location.hash !== '#' + section.id) {
+      window.history.pushState(null, '', '#' + section.id);
+    }
+
+    setActive(link);
+  };
+
+  links.forEach(function (link) {
+    link.addEventListener('click', function (event) {
+      /* Modified clicks keep the browser's own behaviour (new tab, etc.). */
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      event.preventDefault();
+
+      /* A keyboard activation moves focus to the section, like a native
+       * fragment link; a mouse click leaves focus on the link. */
+      goTo(link, true, event.detail === 0);
+    });
+  });
+
+  var ticking = false;
+  var onScroll = function () {
+    if (ticking) {
+      return;
+    }
+
+    ticking = true;
+    window.requestAnimationFrame(function () {
+      sync();
+      ticking = false;
+    });
+  };
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  window.addEventListener('popstate', onScroll);
+  window.addEventListener('hashchange', onScroll);
+
+  /* A direct #report-… link or a Back/Forward jump: the browser has
+   * already scrolled there, so only the active link needs updating. */
+  var fromHash = function () {
+    var id = '';
+
+    try {
+      id = decodeURIComponent(window.location.hash.slice(1));
+    } catch (error) {
+      id = '';
+    }
+
+    var entry = sections.filter(function (item) {
+      return item.section.id === id;
+    })[0];
+
+    if (entry) {
+      setActive(entry.link);
+    } else {
+      sync();
+    }
+  };
+
+  fromHash();
 })();

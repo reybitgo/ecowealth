@@ -24,7 +24,7 @@ foreach ($codes as $row) {
     $totals['redeemed_value'] += (float) $row['redeemed_value'];
 }
 ?>
-              <div class="card report-codes-card" data-live-region="report-codes">
+              <div class="card report-codes-card report-section" id="report-codes" data-live-region="report-codes">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Registration-code revenue</h5>

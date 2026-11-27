@@ -108,6 +108,40 @@
   border-top: 1px solid var(--bs-border-color-translucent);
 }
 
+/* ---------- Section menu (UX-14) ----------
+ * The page is ten report families in one column. The sticky bar and the
+ * anchor-link styling come from the shared `.section-nav` pattern in
+ * app.css; each family's first block reserves the same space with
+ * scroll-margin-top, so neither a jump nor a direct #report-… load lands
+ * a card under the bar. */
+
+/* Laptops with the fixed sidebar leave roughly 950 px for the strip,
+ * which is narrower than ten full-size links. A slightly tighter link
+ * keeps as many visible as possible before the strip scrolls sideways. */
+@media (max-width: 1439.98px) {
+  .reports-tab-list .nav-link {
+    padding-inline: 0.7rem;
+    font-size: 0.875rem;
+  }
+
+  .reports-tab-list .nav-link .icon-base {
+    margin-inline-end: 0.25rem !important;
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .reports-page .report-section {
+    scroll-margin-top: 10rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .reports-page .report-section {
+    scroll-margin-top: 5.75rem;
+  }
+}
+
 /* ---------- Small screens ---------- */
 @media (max-width: 767.98px) {
   .report-table {

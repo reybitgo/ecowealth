@@ -436,4 +436,47 @@ return [
         assert_contains('data-live-region="report-unilevel"', $html);
         assert_contains('Pending liability', $html);
     },
+
+    'UX-14 the reports page carries a section menu over every report family' => function () use ($renderReports): void {
+        test_signed_in_as(test_user('ux14_rpt_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $html = $renderReports();
+
+        /* The shared section nav, not the dataset-changing view pills. */
+        assert_contains('class="section-nav"', $html);
+        assert_contains('data-report-sections', $html);
+        assert_contains('aria-label="Report sections"', $html);
+        assert_contains('<span class="section-nav-label">On this page</span>', $html);
+
+        preg_match('/<nav\b[^>]*data-report-sections[^>]*>([\s\S]*?)<\/nav>/', $html, $menu);
+        assert_true($menu !== [], 'the section menu renders');
+
+        preg_match_all('/href="#([^"]+)"/', $menu[1], $matches);
+        $targets = $matches[1] ?? [];
+
+        assert_same(10, count($targets), 'one link per report family');
+        assert_same(count($targets), count(array_unique($targets)), 'no family is listed twice');
+
+        foreach (['Overview', 'Health', 'Sales', 'Commissions', 'Repeat purchase', 'Royalty',
+                  'Team Harvest', 'General Harvest', 'Binary', 'Codes'] as $label) {
+            assert_contains('>' . $label, $menu[1], $label . ' has a link');
+        }
+
+        foreach ($targets as $id) {
+            assert_contains('id="' . $id . '"', $html, 'the target for #' . $id . ' exists');
+        }
+
+        /* The bar sits under the window filter and above the first family;
+         * the families keep the page's reading order. */
+        $menuAt = strpos($html, 'data-report-sections');
+
+        assert_true($menuAt !== false && $menuAt > strpos($html, 'reports-range'));
+        assert_true($menuAt < strpos($html, 'id="report-overview"'), 'the menu precedes the first section');
+        assert_true(strpos($html, 'id="report-overview"') < strpos($html, 'id="report-royalty"'));
+        assert_true(strpos($html, 'id="report-royalty"') < strpos($html, 'id="report-binary"'));
+        assert_true(strpos($html, 'id="report-binary"') < strpos($html, 'id="report-codes"'));
+    },
 ];

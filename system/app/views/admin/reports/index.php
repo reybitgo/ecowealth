@@ -130,6 +130,8 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
+<?= View::capture('admin/reports/_nav') ?>
+
 <?= View::capture('admin/reports/_kpis', [
     'sales'       => $sales,
     'sales_today' => $sales_today,
@@ -141,7 +143,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
     'range'       => $range,
 ]) ?>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-health">
                 <div class="col-12 col-xl-7">
 <?= View::capture('admin/reports/_health', ['health' => $health]) ?>
                 </div>
@@ -150,7 +152,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-sales">
                 <div class="col-12 col-xl-8">
 <?= View::capture('admin/reports/_sales', [
     'sales'           => $sales,
@@ -167,7 +169,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-commissions">
                 <div class="col-12 col-xl-7">
 <?= View::capture('admin/reports/_commissions', [
     'commissions' => $commissions,
@@ -183,7 +185,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-unilevel">
                 <div class="col-12 col-xl-4">
 <?= View::capture('admin/reports/_unilevel', [
     'unilevel' => $unilevel,
@@ -212,7 +214,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-royalty">
                 <div class="col-12 col-xl-4">
 <?= View::capture('admin/reports/_royalty', [
     'royalty'       => $royalty,
@@ -236,7 +238,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-team-harvest">
                 <div class="col-12">
 <?= View::capture('admin/reports/_team_harvest', [
     'team_harvest'        => $team_harvest,
@@ -250,7 +252,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-general-harvest">
                 <div class="col-12">
 <?= View::capture('admin/reports/_general_harvest', [
     'general_harvest'        => $general_harvest,
@@ -263,7 +265,7 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 </div>
               </div>
 
-              <div class="row g-6 mb-6">
+              <div class="row g-6 mb-6 report-section" id="report-binary">
                 <div class="col-12 col-xl-4">
 <?= View::capture('admin/reports/_binary', [
     'binary' => $binary,
