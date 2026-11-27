@@ -377,6 +377,7 @@ Evidence in user-visible labels:
 **Evidence:** `app/layout/app_header.php:80` and `app/layout/auth_header.php:22` — `user-scalable=no, minimum-scale=1.0, maximum-scale=1.0`. (The 503 error page does not disable zoom, so the behaviour is also inconsistent.)
 **Impact:** low-vision users cannot zoom on the screens where they must read dense financial tables and forms; this is a WCAG 1.4.4 (Resize text) failure.
 **Fix:** use `width=device-width, initial-scale=1` and allow zoom.
+**Status:** Fixed — both layout headers now open at `width=device-width, initial-scale=1` with no `maximum-scale` or `user-scalable` cap, so pinch-zoom and browser text scaling work on every screen. The app header serves the member, admin and plain (error) layouts and the auth header serves the guest pages, so no page disables zoom any more and the standalone 503 page no longer differs. `ViewTest`'s new `UX-34` case renders a page through the app layout and the auth header, requires the zoom-allowed viewport and exactly one viewport declaration on each, and sweeps `app/layout` and `app/views` for `user-scalable=no` or `maximum-scale`. `php -l` passes on `system/app/layout/app_header.php`, `system/app/layout/auth_header.php` and `system/tests/Cases/ViewTest.php`; the new `UX-34` case and the 34-case `ViewTest` group pass, as does the 333-case `*ViewTest` filter run, on 27 November 2026. No browser pass was made.
 
 ### UX-35 — The login password toggle is not a control (Medium)
 

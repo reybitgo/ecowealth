@@ -546,6 +546,66 @@ return [
         );
     },
 
+    'UX-34 the layouts allow pinching to zoom' => function () use ($render): void {
+        $root = dirname(__DIR__, 2);
+
+        /* Zoom is a low-vision reading aid (WCAG 1.4.4), so no layout may
+         * cap the scale. app_header serves the member, admin and plain
+         * (error) layouts. */
+        $page = $render('plain', 'errors/404', [
+            'code'    => 404,
+            'heading' => 'Page not found',
+            'message' => 'The page you were looking for could not be found.',
+        ]);
+
+        assert_contains(
+            'content="width=device-width, initial-scale=1"',
+            $page,
+            'the app layout leaves zoom free'
+        );
+        assert_same(1, substr_count($page, 'name="viewport"'), 'the app page declares one viewport');
+
+        ob_start();
+
+        try {
+            $page_title = 'Sign in';
+            require $root . '/app/layout/auth_header.php';
+        } finally {
+            $auth = (string) ob_get_clean();
+        }
+
+        assert_contains(
+            'content="width=device-width, initial-scale=1"',
+            $auth,
+            'the auth layout leaves zoom free'
+        );
+        assert_same(1, substr_count($auth, 'name="viewport"'), 'the auth page declares one viewport');
+
+        /* The sweep keeps a future layout or standalone page from turning
+         * zoom back off. */
+        $offenders = [];
+
+        foreach (['/app/layout', '/app/views'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root . $directory)
+            );
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                $source = (string) file_get_contents($file->getPathname());
+
+                if (preg_match('/user-scalable\s*=\s*no|maximum-scale/i', $source) === 1) {
+                    $offenders[] = str_replace($root . '/', '', $file->getPathname());
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'no template caps the zoom level');
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',
