@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-24, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-25, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -290,6 +290,7 @@ No `.required` rule exists in the application's CSS (custom or vendor), so the r
 **Evidence:** `app/layout/app_header.php:218-236` always renders the bell and a `count($nav_notes) . ' new'` badge. `app/Core/View.php:80` defaults `nav_notes` to `[]`, and only `AdminDashboardController.php:55` ever supplies notes.
 **Impact:** members see a bell that only ever opens "Nothing new right now" with a "0 new" badge. Admins see content only on the dashboard; on every other page it is empty. The control promises a notification centre that does not exist.
 **Fix:** hide the bell when there is nothing to show, or populate it from real events (new order, activation decision, payout decision, commission credited). At minimum, do not render the "0 new" badge.
+**Status:** Fixed — the bell only renders when a page supplies notes, so an empty bell and its "0 new" badge never appear. The admin dashboard still fills it with the newest accounts; every other page, including the whole member portal, renders no bell at all. The panel's header count now only ever describes real entries, and the icon-only toggle carries `aria-label="Notifications (N new)"` (the bell icon is `aria-hidden`), which it previously lacked. The dead "Nothing new right now" empty state is removed with the empty bell. `ViewTest`'s `UX-25` case renders the member layout with and without notes and rejects the bell, the badge and the empty panel without notes while pinning the count, both note titles and the accessible name with them. `php -l` passes on both changed PHP files; the `UX-25` case and `ViewTest`'s layout cases pass on 27 November 2026; no browser pass was made.
 
 ### UX-26 — The global search searches only one destination (Medium)
 
