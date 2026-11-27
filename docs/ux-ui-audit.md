@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-14 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-16 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -195,6 +195,7 @@ The same "apply the filters" action is styled `btn-primary` on some pages and `b
 **Evidence:** plain `Clear` (`admin/products/index.php`, `admin/orders/index.php`, `admin/members/_filters.php`), `Clear filters` (`partials/wallet_statement.php:113`), an icon-only `×` (`shop/catalog.php:59`), `Start over` (`shop/checkout.php` draft notice), `Last 30 days` as the reset for Reports (`admin/reports/index.php:121`).
 **Impact:** the escape hatch from a filtered view has no consistent name or position; on the storefront it is an unlabelled icon.
 **Fix:** use "Clear filters" everywhere, with the icon+label combination; for Reports keep "Last 30 days" as a separate preset and add "Clear filters" beside it.
+**Status:** Fixed in `8a06cbe` — every filter reset is now the same icon + "Clear filters" control: the admin product, order, member, e-wallet, payout, package, code, audit, activation and impersonation bars, the member orders, earnings and commissions statements, and the storefront catalogue with its filtered empty state. Reports keeps "Last 30 days" as its preset and offers "Clear filters" beside it when the window is custom. The checkout draft action no longer reads "Start over": it is "Clear draft", because it discards the saved draft rather than a filter. `ViewTest` sweeps every view for the old labels, `ReportViewTest` pins both Reports actions, and the UX-16 sweep, `ViewTest`, `ReportViewTest`, `OrderViewTest`, `ProductViewTest` and `ShopLiveTest` pass on 27 November 2026; no browser pass was made.
 
 ### UX-17 — Filter forms alternate between visible labels and `aria-label` only (Medium)
 
