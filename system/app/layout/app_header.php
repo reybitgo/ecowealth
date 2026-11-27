@@ -19,6 +19,7 @@ declare(strict_types=1);
  * @var array      $nav_notes    Optional notification entries:
  *                               [['icon' => 'bx bx-user-plus', 'tone' => 'primary',
  *                                 'title' => 'New member', 'text' => 'jane', 'time' => '2 min ago'], …]
+ *                               The bell is hidden when the list is empty (UX-25).
  * @var array      $nav_badges   Optional menu counters, e.g. ['cart' => 3]
  * @var string     $nav_search_placeholder Optional navbar search hint
  * @var string     $nav_search_url         Optional navbar search target
@@ -205,7 +206,10 @@ $html_class  = $has_menu
                 </li>
                 <!-- / Cart -->
 
-                <!-- Notifications -->
+                <!-- Notifications: only when there is something to show. A bell
+                     that can only open an empty panel promises a notification
+                     centre the application does not have (UX-25). -->
+<?php if ($nav_notes !== []): ?>
                 <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-2">
                   <a
                     class="nav-link dropdown-toggle hide-arrow btn btn-icon btn-text-secondary rounded-pill"
@@ -213,11 +217,10 @@ $html_class  = $has_menu
                     data-bs-toggle="dropdown"
                     data-bs-auto-close="outside"
                     aria-expanded="false"
+                    aria-label="Notifications (<?= count($nav_notes) ?> new)"
                   >
-                    <i class="icon-base bx bx-bell icon-md"></i>
-                    <?php if ($nav_notes !== []): ?>
-                      <span class="position-absolute top-0 start-50 translate-middle-y badge badge-dot bg-danger mt-2 border"></span>
-                    <?php endif; ?>
+                    <i class="icon-base bx bx-bell icon-md" aria-hidden="true"></i>
+                    <span class="position-absolute top-0 start-50 translate-middle-y badge badge-dot bg-danger mt-2 border"></span>
                   </a>
                   <ul class="dropdown-menu dropdown-menu-end py-0" style="min-width: 21rem">
                     <li class="border-bottom">
@@ -228,11 +231,6 @@ $html_class  = $has_menu
                     </li>
                     <li>
                       <ul class="list-group list-group-flush" style="max-height: 19rem; overflow-y: auto">
-<?php if ($nav_notes === []): ?>
-                        <li class="list-group-item text-body-secondary small px-4 py-4">
-                          Nothing new right now — you are all caught up.
-                        </li>
-<?php endif; ?>
 <?php foreach ($nav_notes as $note): ?>
                         <li class="list-group-item d-flex align-items-start gap-3 px-4 py-3 border-0">
                           <div class="avatar avatar-sm flex-shrink-0">
@@ -251,6 +249,7 @@ $html_class  = $has_menu
                     </li>
                   </ul>
                 </li>
+<?php endif; ?>
                 <!-- / Notifications -->
 
                 <!-- User -->

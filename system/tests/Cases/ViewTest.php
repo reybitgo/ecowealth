@@ -782,6 +782,40 @@ return [
         );
     },
 
+    'UX-25 the notification bell only renders when it has something to show' => function () use ($render): void {
+        test_signed_in_as(test_user('ux25_member'));
+
+        $catalog = [
+            'products'  => [],
+            'available' => [],
+            'pager'     => new Paginator(0, 12, 1),
+            'filters'   => ['q' => ''],
+            'shop_open' => true,
+            'page_title'  => 'Shop',
+            'current_nav' => 'shop',
+        ];
+
+        $quiet = $render('member', 'shop/catalog', $catalog);
+
+        assert_not_contains('dropdown-notifications', $quiet, 'no bell opens an empty notification centre');
+        assert_not_contains('0 new', $quiet, 'the empty badge is never rendered');
+        assert_not_contains('Nothing new right now', $quiet, 'the empty panel is gone');
+
+        $notes = [
+            ['icon' => 'bx-user-plus', 'tone' => 'success', 'title' => 'New member', 'text' => 'Joined 2 min ago', 'time' => ''],
+            ['icon' => 'bx-package', 'tone' => 'primary', 'title' => 'New order', 'text' => 'Order #1042 paid', 'time' => ''],
+        ];
+
+        $loud = $render('member', 'shop/catalog', $catalog + ['nav_notes' => $notes]);
+
+        assert_contains('class="nav-item dropdown-notifications navbar-dropdown dropdown', $loud, 'the bell renders with notes');
+        assert_contains('aria-label="Notifications (2 new)"', $loud, 'the bell names its count');
+        assert_contains('<span class="badge rounded-pill bg-label-primary">2 new</span>', $loud, 'the panel counts the notes');
+        assert_contains('New member', $loud);
+        assert_contains('New order', $loud);
+        assert_not_contains('0 new', $loud, 'a populated bell never claims zero');
+    },
+
     'Escaping is applied everywhere user text is printed' => function (): void {
         $html = View::capture('errors/404', [
             'code'    => 404,
