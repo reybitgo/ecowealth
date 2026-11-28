@@ -204,6 +204,17 @@ version row and correction list (item 14) record the change.
 
 **Suggested correction:** either remove the second-approval expectation from the manual flow or label it as an API/service check (for example, an automated POST or the existing test suite). If it stays manual, add a deliberate second POST with a CSRF token and state that it is not a normal UI action.
 
+**Resolution (walkthrough v3.7):** QA24-04 no longer presents the second approval as a UI step. Its
+expected result now says the approved row has no **Approve** or **Reject** control — the request has
+left *Awaiting review* — and attributes the *This activation has already been completed. Nothing was
+changed.* guard to the automated checks that perform the crafted repeat POST: the suite's `P9-T12`
+(`system/tests/Cases/MembershipTest.php`) calls `ActivationService::approve()` twice and asserts the
+second call is refused without re-running the commission hook or moving the wallet, and
+`system/tests/smoke.ps1` posts to `/admin/activations/{id}/approve` a second time with the CSRF token
+and asserts one `approved` row and one commission stamp. `ActivationService::approve()` is unchanged;
+the guard exists and stays covered, it simply has no button once the row is approved. The
+walkthrough's version row and correction list (item 15) record the change.
+
 ---
 
 ## DOC-07 — The documented admin password conflicts with a fresh schema

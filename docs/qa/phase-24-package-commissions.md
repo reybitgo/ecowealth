@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.6** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, and v3.6 made QA24-05's reason check reachable before the rejection. These corrections remain manual checks (see the box below and `phase-24-run-report.md`) |
+| **Document version** | **v3.7** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, and v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -29,7 +29,7 @@ you never "fix" data.
 > v3.2** and finishes that cleanup. **11 is new in v3.3** and corrects one quoted amount. **12 is new
 > in v3.4** and makes QA24-03's expired case runnable. **13 is new in v3.5** and supplies QA24-18's
 > missing proofs. **14 is new in v3.6** and makes QA24-05's reason check reachable before the
-> rejection:
+> rejection. **15 is new in v3.7** and takes QA24-04's second approval off the manual flow:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -79,6 +79,14 @@ you never "fix" data.
 >     box (*Enter rejection reason (at most 160 characters).*), and a two-character reason such as
 >     `no` is refused by the server with *Enter a short reason (at least 3 characters) so the member
 >     knows what to fix.* The valid rejection follows, unchanged.
+>
+> 15. **QA24-04's second approval is an automated check, not a button.** After the first approval the
+>     request is **Approved**, so the row leaves *Awaiting review* and renders no **Approve** or
+>     **Reject** control. The server still refuses a repeat approval with *This activation has already
+>     been completed. Nothing was changed.*, but only a crafted repeat request can reach that guard;
+>     the check now says so instead of asking the tester to click a button that does not exist. The
+>     suite's P9-T12 and the smoke run's second `POST /admin/activations/{id}/approve` are the
+>     evidence for that bullet.
 
 ---
 
@@ -836,8 +844,14 @@ expiry through the form — the date field refuses it by design.
   - `QA24_Member_B` **₱500** direct,
   - `QA24_Member_A` **₱100** indirect level 2,
   - `QA24_Sponsor` **₱50** indirect level 3.
-- Approving the same request a second time is refused with *This activation has already been
-  completed. Nothing was changed.* and changes nothing.
+- The row now has **no Approve or Reject control**: the request is **Approved** and has left
+  *Awaiting review*, which is the expected state — do not look for a second **Approve** button.
+  The server still refuses a repeat approval with *This activation has already been completed.
+  Nothing was changed.*, but no screen sends that request. The guard is covered by the automated
+  checks, not by a click: `P9-T12` in `php tests\run.php` approves an activation twice and asserts
+  the second call is refused without re-running the commission hook or moving the wallet, and
+  `tests\smoke.ps1` makes the same second `POST /admin/activations/{id}/approve` over HTTP, which
+  must leave one `approved` row and one commission stamp. Record this bullet from that run.
 - The proof image returns `403` to a member and a login redirect to a guest (you can check this by
   copying the proof URL into Window B while signed out).
 
