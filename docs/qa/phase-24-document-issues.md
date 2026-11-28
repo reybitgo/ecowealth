@@ -253,6 +253,20 @@ row and correction list (item 16) record the change.
 
 **Suggested correction:** mark QA24-19 **Blocked**, stop the run, restore the pre-run backup (or reset), and start Part 1 again. Do not seed after registrations. The “Pass with note” fallback should be removed for this specific ordering failure.
 
+**Resolution (walkthrough v3.9):** QA24-19's “If it fails — no rows at all” paragraph no longer
+offers a late seed. The check marks itself **Blocked**, saves the query output, stops the run, and
+sends the tester to the pre-run backup restore (or `php bin\db_reset.php --force --confirm=<database>`)
+and back through the “Before QA24-08” block on an empty tree; the “Pass with note” fallback is
+removed. A second sentence covers the silent form of the same mistake — rows that exist but were
+reconstructed by the seed — and names the two markers: a `source = seed` row where QA24-19 expects
+`registration` (`HarvestQueue::SOURCE_SEED` is what `HarvestQueue::seed()` inserts; the live hook
+writes `SOURCE_REGISTRATION`), and a `team_harvest_ledger_since` later than the first row's
+`qualified_at` (the seed reconstructs each `qualified_at` from the gate-th direct's `created_at`, so
+the late baseline is visible at once). The check's “You should see” bullets now require the setting
+to predate the first qualification and name the `seed` source, §18's troubleshooting row says the
+same thing instead of telling the tester to seed and re-query, and the walkthrough's version row and
+correction list (item 17) record the change.
+
 ---
 
 ## DOC-09 — QA24-29's code cleanup can delete non-QA codes

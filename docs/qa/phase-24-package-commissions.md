@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.8** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, and v3.8 makes the admin login the account of the copy rather than a fixed default. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.9** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, and v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
@@ -30,7 +30,8 @@ you never "fix" data.
 > in v3.4** and makes QA24-03's expired case runnable. **13 is new in v3.5** and supplies QA24-18's
 > missing proofs. **14 is new in v3.6** and makes QA24-05's reason check reachable before the
 > rejection. **15 is new in v3.7** and takes QA24-04's second approval off the manual flow;
-> **16 is new in v3.8** and makes the admin login the account of the copy you are testing:
+> **16 is new in v3.8** and makes the admin login the account of the copy you are testing;
+> **17 is new in v3.9** and turns QA24-19's empty-queue recovery into a stop-and-restart:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -94,6 +95,16 @@ you never "fix" data.
 >     defaults, so a fresh QA schema signs in only with the password chosen when it was installed.
 >     Section 3.1 now names both cases and gives the install command that sets a known password;
 >     the header's login row points there instead of stating one fixed password.
+>
+> 17. **QA24-19's empty queue is Blocked, not a late seed.** The queue is seeded in Part 1, on an
+>     empty tree. Seeding it after the registrations reconstructs the members the tree already holds
+>     and writes a fresh `team_harvest_ledger_since`; every level already complete at that instant is
+>     recorded and never paid (D-06/D-07), so QA24-20, QA24-23 and QA24-24 could only fail — and the
+>     reconstructed rows carry `source = seed` instead of `registration`. An empty queue at QA24-19
+>     is therefore an ordering failure to report: the check marks itself **Blocked**, the run stops,
+>     and the tester restores the pre-run backup (or runs
+>     `bin\db_reset.php --force --confirm=<database>`) and starts again from the "Before QA24-08"
+>     block with the tree still empty. The old "Pass with note" fallback is gone.
 
 ---
 
@@ -1060,8 +1071,9 @@ as the member named in each check (Window B) and as admin (Window A).
 - **Six** rows, in this order: `QA24_Sponsor` (1), `QA24_Member_A` (2), `QA24_Team_1` (3),
   `QA24_Team_2` (4), `QA24_Team_3` (5), `QA24_Member_B` (6).
 - Positions are 1…6 with no gaps; each `directs_at_qualification` is at least 1; `source` is
-  `registration`.
-- The setting query returns a date-time (the queue is live, not empty).
+  `registration` — a `seed` row means the queue was reconstructed after the tree existed (see below).
+- The setting query returns a date-time **earlier** than the first row's `qualified_at`: the queue
+  was live before `QA24_Sponsor` qualified, which is the Part 1 order.
 
 > **Why six, and why B is last.** Any member with at least one direct qualifies, and qualification
 > happens when that direct *registers*. `QA24_Sponsor` qualified when A joined, A when B joined,
@@ -1070,10 +1082,19 @@ as the member named in each check (Window B) and as admin (Window A).
 > The count and the order are both correct; neither is a defect. `QA24_Member_C` joins the queue
 > later, in QA24-05 (when D registers).
 
-**If it fails** — no rows at all: the queue was never seeded. Run
-`php bin\harvest_queue_seed.php` once from `C:\laragon\www\ecowealth\system`, re-register nothing,
-and re-run this query; if rows then appear, mark this check **Pass with note**. A gap in positions
-(1,2,4) is a **Fail**.
+**If it fails** — no rows at all: the queue was never seeded, so nothing watched the Part 3
+registrations. **Do not seed it now.** A seed at this point reconstructs the members the tree already
+holds and writes a fresh `team_harvest_ledger_since`; every level already complete at that instant is
+recorded as `baseline` and never paid (D-06/D-07), so QA24-20, QA24-23 and QA24-24 could only fail,
+and the queue would show `source = seed` rather than `registration`. That is the ordering error the
+"Before QA24-08" block warns about: mark this check **Blocked**, save the query output, restore the
+pre-run backup (or run `php bin\db_reset.php --force --confirm=<database>`), and start again from
+that block with the tree still empty.
+
+**If rows exist but were late-seeded** — any `source = seed`, or `team_harvest_ledger_since` later
+than the first `qualified_at`: the queue was reconstructed after the tree was built. That is the same
+ordering failure with the same finish — **Blocked**, restore, restart; do not record it as Pass. A gap
+in positions (1,2,4) is a **Fail**.
 
 ### QA24-20 — Team Harvest level 1 pays each member whose block fills
 
@@ -1711,7 +1732,7 @@ SELECT a.id, u.username, a.status, a.binary_points, a.binary_total, a.binary_pro
 | "This side is already taken" | Leftover data from an earlier attempt | Use the free side the form shows, and note the deviation |
 | A member stays **Pending** after a code | The code was not validated, or the mode was Standard | Re-register with **Registration code** and press Validate first |
 | Pair award missing | One side has no points (activation before QA24-08) | Restore the backup and restart from Part 1 |
-| Queue is empty | Never seeded | `php bin\harvest_queue_seed.php` once, then re-query |
+| Queue is empty, or the rows say `source = seed` | The queue was not seeded before the registrations | **Blocked**: do not seed now; restore the backup and restart from the "Before QA24-08" block |
 | Board refuses to arm | Board not seeded/armed | `php bin\general_harvest_arm.php`, then re-check |
 | Reconcile reports a mismatch | A real defect, or a manual edit | Stop; save the output; report as Blocker |
 | A proof will not upload | File too big or wrong type | Use a small PNG (< 2 MB) |
