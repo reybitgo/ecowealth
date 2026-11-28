@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.12** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, and v3.11 gives QA24-18's no-volume check a query keyed to its three activations and v3.12 makes §3.4's backup command run on this Windows setup. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.13** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, v3.11 gives QA24-18's no-volume check a query keyed to its three activations, v3.12 makes §3.4's backup command run on this Windows setup, and v3.13 gives §5's URL column the full `/ecowealth/system/` path. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
@@ -35,7 +35,7 @@ you never "fix" data.
 > **18 is new in v3.10** and makes QA24-29 delete only the codes the run issued;
 > **19 is new in v3.11** and gives QA24-18's no-volume check a query keyed to its three
 > activations; **20 is new in v3.12** and makes §3.4's backup command work on this Windows
-> setup:
+> setup; **21 is new in v3.13** and gives §5's URL column the full `/ecowealth/system/` path:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -131,6 +131,11 @@ you never "fix" data.
 >     `--default-character-set=utf8mb4` — the same flags the project's own backup uses in
 >     `docs\install-reset.md` §7.4 — and ends by checking the file starts with `-- MySQL dump` and is
 >     not 0 bytes.
+>
+> 21. **§5's URL column is a full path you can paste.** Every URL in the table now starts with
+>     `/ecowealth/system/`, the same prefix as the header's app URL, so it opens the screen as it
+>     stands. The **Where** rows in the checks keep the shorter `/admin/...` form; add
+>     `ecowealth/system` in front when you paste one of those.
 
 ---
 
@@ -364,17 +369,21 @@ skip.
 
 | What you want | Sign in as | Menu path | URL |
 |---|---|---|---|
-| Issue a registration code | admin | Commerce → Codes | `/admin/codes` |
-| Approve or reject an activation | admin | Commerce → Activations | `/admin/activations` |
-| Find a member, see their binary placement | admin | Commerce → Members → search → open | `/admin/members` |
-| The commission ledger (all streams) | admin | Finance → Commissions | `/admin/commissions` |
-| The binary ledger | admin | Finance → Commissions → binary tab | `/admin/commissions?ledger=binary` |
-| Turn features on/off, set depths and gates | admin | System → Settings → **Commissions** tab | `/admin/settings#settings-commissions` |
-| Turn Package A's binary points on | admin | Catalogue → Packages → Package A → **Package binary** card | `/admin/packages` |
-| See a member's own earnings | the member | Membership → **Earnings** | `/earnings` |
-| See a member's wallet | the member | Money → **E-wallet** | `/wallet` |
-| Register someone | anyone | Membership → Register | `/register` |
-| The audit trail | admin | System → Audit log | `/admin/audit` |
+| Issue a registration code | admin | Commerce → Codes | `/ecowealth/system/admin/codes` |
+| Approve or reject an activation | admin | Commerce → Activations | `/ecowealth/system/admin/activations` |
+| Find a member, see their binary placement | admin | Commerce → Members → search → open | `/ecowealth/system/admin/members` |
+| The commission ledger (all streams) | admin | Finance → Commissions | `/ecowealth/system/admin/commissions` |
+| The binary ledger | admin | Finance → Commissions → binary tab | `/ecowealth/system/admin/commissions?ledger=binary` |
+| Turn features on/off, set depths and gates | admin | System → Settings → **Commissions** tab | `/ecowealth/system/admin/settings#settings-commissions` |
+| Turn Package A's binary points on | admin | Catalogue → Packages → Package A → **Package binary** card | `/ecowealth/system/admin/packages` |
+| See a member's own earnings | the member | Membership → **Earnings** | `/ecowealth/system/earnings` |
+| See a member's wallet | the member | Money → **E-wallet** | `/ecowealth/system/wallet` |
+| Register someone | anyone | Membership → Register | `/ecowealth/system/register` |
+| The audit trail | admin | System → Audit log | `/ecowealth/system/admin/audit` |
+
+Every URL in the table is the full path from the app URL in the header, so you can paste it into the
+browser as it stands. The **Where** rows in the checks name the same screen without the
+`ecowealth/system` folder — add that prefix when you paste one of those.
 
 > **Menus differ by role.** An admin sees "Commerce", "Finance" and "System". A member sees
 > "Shopping", "Membership", "Money" and "Account". If a menu in this document is missing, you are

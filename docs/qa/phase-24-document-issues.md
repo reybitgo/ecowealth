@@ -387,6 +387,22 @@ version row and correction list (item 20) record the change.
 
 **Suggested correction:** prefix the URL column with `/ecowealth/system/`, or add a sentence that every URL in the table is relative to the app URL in the header.
 
+**Resolution (walkthrough v3.13):** §5's URL column now carries the full path: every cell starts
+with `/ecowealth/system/`, so the codes screen reads `/ecowealth/system/admin/codes` and the
+Commissions tab reads `/ecowealth/system/admin/settings#settings-commissions`. The paragraph between
+the heading and the table says the same in words — each URL is the full path from the header's app
+URL and can be pasted into the browser as it stands — and notes that the checks' **Where** rows keep
+the shorter `/admin/...` form, which becomes live by adding `ecowealth/system`. Both halves of the
+suggested correction are in place; the menu paths were already correct, so no other line changed.
+
+The prefix is the one the application itself uses: `system/.htaccess` forwards everything under
+`/ecowealth/system/` to `system/public/` without the `public` segment ever showing, and each §5 path
+matches a live route — `/admin/codes`, `/admin/activations`, `/admin/members`, `/admin/commissions`,
+`/admin/settings`, `/admin/packages`, `/admin/audit`, `/earnings` and `/wallet` in
+`system/app/routes.php`, and `/register` as the standalone `register.php` page. The only change a
+tester sees is the prefix that turns a copied path from a 404 into the screen it names. The
+walkthrough's version row and correction list (item 21) record the change.
+
 ---
 
 ## DOC-13 — QA24-29's “normal demo accounts” may not exist
