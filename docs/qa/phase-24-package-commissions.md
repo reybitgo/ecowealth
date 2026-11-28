@@ -12,10 +12,10 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.7** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, and v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.8** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, and v3.8 makes the admin login the account of the copy rather than a fixed default. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
-| **Admin login** | `admin` / `Admin@123` |
+| **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
 | **Your test accounts** | all prefixed `QA24`, password `Demo@1234`, created by you during the run |
 | **Checks** | 29 (QA24-01 … QA24-29) |
 | **Time** | 3–4 hours, including setup. Do not split it across days: the walkthrough depends on the order. |
@@ -29,7 +29,8 @@ you never "fix" data.
 > v3.2** and finishes that cleanup. **11 is new in v3.3** and corrects one quoted amount. **12 is new
 > in v3.4** and makes QA24-03's expired case runnable. **13 is new in v3.5** and supplies QA24-18's
 > missing proofs. **14 is new in v3.6** and makes QA24-05's reason check reachable before the
-> rejection. **15 is new in v3.7** and takes QA24-04's second approval off the manual flow:
+> rejection. **15 is new in v3.7** and takes QA24-04's second approval off the manual flow;
+> **16 is new in v3.8** and makes the admin login the account of the copy you are testing:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -87,6 +88,12 @@ you never "fix" data.
 >     the check now says so instead of asking the tester to click a button that does not exist. The
 >     suite's P9-T12 and the smoke run's second `POST /admin/activations/{id}/approve` are the
 >     evidence for that bullet.
+>
+> 16. **The admin login belongs to the copy you are testing, not to a fixed default.** `Admin@123` is
+>     the development copy's password. `bin\db_install.php` refuses it and the other published
+>     defaults, so a fresh QA schema signs in only with the password chosen when it was installed.
+>     Section 3.1 now names both cases and gives the install command that sets a known password;
+>     the header's login row points there instead of stating one fixed password.
 
 ---
 
@@ -152,9 +159,31 @@ Work through this list once. It takes about ten minutes and saves an hour of con
 
 1. Open **Laragon** and press **Start All**. Wait until Apache and MySQL show green.
 2. Open `http://localhost/ecowealth/system/` in your browser. You should see the EcoWealth home page.
-3. Sign in with `admin` / `Admin@123`. You land on the **back office** dashboard.
+3. Sign in with the admin account of **this copy**. On the development copy `ecowealth_sneat` that
+   is `admin` / `Admin@123`. You land on the **back office** dashboard.
 4. Click your name (top right) → **Sign out**. Confirm you can sign back in. If you cannot, stop
    here: the rest of the document cannot run and that is a blocker to report.
+
+> **A schema installed with `bin\db_install.php` has its own admin password.** The installer refuses
+> the published defaults (`Admin@123`, `Super@123`, …), so the development password cannot sign in
+> there; use the password typed at install time. If you are creating a fresh schema for this run,
+> create it empty (phpMyAdmin → **New**), choose a password you will remember, and install from
+> `C:\laragon\www\ecowealth\system` — `docs\install-reset.md` §3.3 and §5.3 cover the installer's
+> rules and the install-lock caveat:
+>
+> ```powershell
+> "Qa24Run!Pass2026`nQa24Super!Pass2026" |
+>   php bin\db_install.php --database=ecowealth_sneat_qa24 `
+>     --admin-email=qa24@example.com `
+>     --superadmin-email=qa24+super@example.com `
+>     --admin-password-stdin --superadmin-password-stdin --force
+> ```
+>
+> The two `--…-password-stdin` flags read one line each, admin first; `--force` skips only the typed
+> database-name confirmation. Point the app at that schema (`$env:ECO_DB_NAME = 'ecowealth_sneat_qa24'`
+> before a `php -S` run) and read `ecowealth_sneat_qa24` wherever this document names
+> `ecowealth_sneat` (for example the backup and phpMyAdmin steps). The development copy needs none
+> of this: its login is `admin` / `Admin@123` and its URL is the one in the header.
 
 > **Never test on a live site.** The address must start with `http://localhost/`. If it does not,
 > close the tab and start again.

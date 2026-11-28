@@ -227,6 +227,18 @@ walkthrough's version row and correction list (item 15) record the change.
 
 **Suggested correction:** replace the fixed login row with “the admin account of this copy” and state that a fresh schema must be installed with known staff credentials. Include the exact install command/password source in §3.1, or use the development copy the document is written against.
 
+**Resolution (walkthrough v3.8):** the header no longer states one fixed login. Its **Admin login**
+row now points at §3.1 and names both cases: the development copy `ecowealth_sneat`, where
+`admin` / `Admin@123` works, and a schema installed with `bin\db_install.php`, which signs in only
+with the password chosen at install time because the installer refuses the published defaults.
+§3.1 carries that install command — both passwords on stdin, admin first, `--force` to skip the typed
+database-name confirmation, with `Qa24Run!Pass2026` as the example, matching §6 of
+`phase-24-run-report.md` — and tells the tester to write the password down, point the app at the
+schema, and read that schema name wherever the document names `ecowealth_sneat`. The development
+copy's URL and steps are unchanged, so a tester following the header's
+`http://localhost/ecowealth/system/` path still signs in with `Admin@123`. The walkthrough's version
+row and correction list (item 16) record the change.
+
 ---
 
 ## DOC-08 — QA24-19's late-seed recovery contradicts the baseline rule
