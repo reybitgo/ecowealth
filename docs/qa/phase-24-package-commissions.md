@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.4** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), and v3.4 gives QA24-03 a documented fixture for its expired code. All three remain manual checks (see the box below and `phase-24-run-report.md`) |
+| **Document version** | **v3.5** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, and v3.5 added QA24-18's missing proof-submission step. These corrections remain manual checks (see the box below and `phase-24-run-report.md`) |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -27,7 +27,8 @@ you never "fix" data.
 > each confirmed by the run — except item 8's replacement cleanup, which is the workaround for the
 > constraint that stopped the original delete and was not itself executed end to end. **10 is new in
 > v3.2** and finishes that cleanup. **11 is new in v3.3** and corrects one quoted amount. **12 is new
-> in v3.4** and makes QA24-03's expired case runnable:
+> in v3.4** and makes QA24-03's expired case runnable. **13 is new in v3.5** and supplies QA24-18's
+> missing proofs:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -64,6 +65,11 @@ you never "fix" data.
 >     check now issues one spare Package A code and marks it `expired` with a documented `UPDATE`
 >     before validating it. Step 3 also names the used code — the **third** code from QA24-02, the
 >     one that registered `QA24_Member_B`.
+> 13. **QA24-18's three zero-point members must submit a proof before they can be approved.**
+>     Registering them leaves each **pending** with nothing in the admin queue, so the check now walks
+>     the QA24-04 steps 2–3 flow for each member — **Membership** → **Payment proof** → GCash →
+>     Package A → reference → receipt → **Submit for review** — and only then approves them one at a
+>     time.
 
 ---
 
@@ -1332,7 +1338,7 @@ an ineligible member.
 |---|---|
 | **What it proves** | With no points, or the package flag off, or the global switch off, an activation places no volume and pays no pair — while the referral ladder still pays. |
 | **Before** | Every earlier binary number is verified and recorded. |
-| **Where** | Catalogue → Packages → Package A; System → Settings; Commerce → Activations |
+| **Where** | `/membership` (as `QA24_Zero1`–`Zero3`); Commerce → Activations; Catalogue → Packages → Package A; System → Settings |
 | **Evidence** | `QA24-18-binary-zeros.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked |
 
@@ -1343,7 +1349,13 @@ an ineligible member.
    because the sponsor's own left slot already holds `QA24_Member_A`: use `QA24_Team_1a` (left),
    `QA24_Team_2a` (left) and `QA24_Team_3a` (left). Without this the form refuses with *"The left
    slot under member #3 is already taken."*
-1. Set Package A `binary_points = 0` (flag still on). Approve `QA24_Zero1`'s proof. Then check:
+1. **Window B:** submit a proof for each of the three. Step 0 leaves this window signed in as
+   `QA24_Zero3`, so sign out first. For `QA24_Zero1`, `QA24_Zero2` and `QA24_Zero3` in turn: sign in,
+   open **Membership** → **Payment proof** → **GCash** → Package A → a reference number (for example
+   `QA24-Z1`) → a small PNG or PDF receipt → **Submit for review**. The page then shows **Activation
+   in progress** and no longer offers the forms — this is QA24-04 steps 2–3, once per member.
+   **Window A:** Commerce → **Activations** → *Awaiting review* now lists all three proofs.
+2. Set Package A `binary_points = 0` (flag still on). Approve `QA24_Zero1`'s proof. Then check:
 
    ```sql
    SELECT a.id, a.binary_points, a.binary_total, a.binary_processed_at
@@ -1351,17 +1363,17 @@ an ineligible member.
     ORDER BY a.id DESC LIMIT 1;
    ```
 
-2. Set Package A `binary_enabled = 0`; approve `QA24_Zero2`; check its row again.
-3. Set `package_binary_enabled = 0` (global); approve `QA24_Zero3`; check its row.
-4. Restore Package A to `binary_enabled = 1`, `binary_points = 1000`, and the global switch **on**.
-5. Confirm no `binary_awards` or `binary_volume` rows were written by any of the three.
+3. Set Package A `binary_enabled = 0`; approve `QA24_Zero2`; check its row again.
+4. Set `package_binary_enabled = 0` (global); approve `QA24_Zero3`; check its row.
+5. Restore Package A to `binary_enabled = 1`, `binary_points = 1000`, and the global switch **on**.
+6. Confirm no `binary_awards` or `binary_volume` rows were written by any of the three.
 
 **You should see**
 
 - Each of the three activations has `binary_points = 0`, `binary_total = 0.00`, and no volume/award
   rows.
 - The referral ladder still paid its normal amounts for each activation (extra rows are expected).
-- After step 4 the package and switches are back to the QA values.
+- After step 5 the package and switches are back to the QA values.
 
 **If it fails** — any of the three wrote volume or a pair: **Fail**. That is money out of nothing.
 

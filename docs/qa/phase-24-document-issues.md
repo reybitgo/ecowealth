@@ -155,6 +155,16 @@ leaving the tester to discover it.
 
 **Suggested correction:** add a step between step 0 and step 1: for each of the three members, sign in as the member, open Membership, submit a manual proof for Package A, then return to the admin queue and approve it. Alternatively say “repeat QA24-04 steps 2–3 for each zero-point member.”
 
+**Resolution (walkthrough v3.5):** QA24-18 now submits the three proofs before it approves them. A
+new step 1 signs in as `QA24_Zero1`, `QA24_Zero2` and `QA24_Zero3` in turn (Window B, after the
+registration in step 0) and walks the QA24-04 steps 2–3 flow — **Membership** → **Payment proof** →
+GCash → Package A → reference → receipt → **Submit for review** — until each page shows **Activation
+in progress**; Commerce → **Activations** → *Awaiting review* then lists all three. The approvals
+moved down one step, and the check's `Where` row now opens with `/membership`. The automated run
+already submitted a proof for every member (`submit_proof()` before each `admin_approve()` in
+`qa24_http_run_20261128.php`), so this only writes down what the manual check was silently assuming.
+The walkthrough's version row and correction list (item 13) record the change.
+
 ---
 
 ## DOC-05 — QA24-05's empty-reason rejection is unreachable
