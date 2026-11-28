@@ -287,6 +287,20 @@ DELETE FROM reg_codes
 
 **Suggested correction:** delete the exact codes the run issued (the document can record them in a note, or the issue-batch response can be copied), or add a dedicated batch/run identifier to the cleanup. If date/issuer is retained, state the precondition that no other codes were issued by `admin` on that date, and take a backup first.
 
+**Resolution (walkthrough v3.10):** QA24-29 step 3 no longer deletes registration codes by date and
+issuer. It deletes **by value**, from the list the tester copies at issue time: the three QA24-02
+codes, the QA24-03 spare and the QA24-06 code. §3.6 now asks for **every** code the run issues, not
+just QA24-02's and QA24-03's, and the step checks the five values with a `SELECT` first; a code
+missing from the note is matched by its used-by member in Commerce → Codes, and the text says never
+to widen the delete to a date range. The failure note, which previously said “never delete rows that
+do not start with `QA24`” — impossible to enforce for random codes — now says what it can enforce:
+accounts must match `QA24\_%` and a code must be one of the five recorded values.
+
+The automated runner already deleted exact values — `DELETE FROM reg_codes WHERE code IN (...)` over
+the codes it issued (`qa24_http_run_20261128.php`, line 708) — so the document now writes down what
+the runner did and removes the broad statement the walkthrough still carried. The walkthrough's
+version row and correction list (item 18) record the change.
+
 ---
 
 ## DOC-10 — QA24-18's “no volume or award rows” has no query

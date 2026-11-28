@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.9** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, and v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.10** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, and v3.10 deletes only the registration codes the run issued. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
@@ -31,7 +31,8 @@ you never "fix" data.
 > missing proofs. **14 is new in v3.6** and makes QA24-05's reason check reachable before the
 > rejection. **15 is new in v3.7** and takes QA24-04's second approval off the manual flow;
 > **16 is new in v3.8** and makes the admin login the account of the copy you are testing;
-> **17 is new in v3.9** and turns QA24-19's empty-queue recovery into a stop-and-restart:
+> **17 is new in v3.9** and turns QA24-19's empty-queue recovery into a stop-and-restart;
+> **18 is new in v3.10** and makes QA24-29 delete only the codes the run issued:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -105,6 +106,12 @@ you never "fix" data.
 >     and the tester restores the pre-run backup (or runs
 >     `bin\db_reset.php --force --confirm=<database>`) and starts again from the "Before QA24-08"
 >     block with the tree still empty. The old "Pass with note" fallback is gone.
+>
+> 18. **QA24-29 deletes the run's registration codes by value, not by date.** Codes are random, not
+>     prefixed `QA24`, so deleting every code `admin` issued on or after the run start could remove
+>     unrelated codes on a copy that already had some. The cleanup now deletes the five values the
+>     run issued — the three from QA24-02, QA24-03's spare and QA24-06's — from the note §3.6 asks
+>     you to keep, after a `SELECT` confirms the list. Step 3 no longer widens to a date range.
 
 ---
 
@@ -261,8 +268,10 @@ your own.
 ### 3.6 What you need on screen
 
 - The app in two windows, as above.
-- A text note (Notepad is fine) for the **before** values you record in QA24-07 and the codes you
-  issue in QA24-02 and QA24-03. Codes look like `ABCD-EFGH-JKLM`.
+- A text note (Notepad is fine) for the **before** values you record in QA24-07 and **every** code
+  you issue — three in QA24-02, the spare in QA24-03 and the one in QA24-06. Codes look like
+  `ABCD-EFGH-JKLM` and are random, so copy each one when the screen shows it: QA24-29 deletes
+  exactly these values.
 - A folder for screenshots.
 - A fresh terminal in `C:\laragon\www\ecowealth\system` for the commands near the end. Open
   **PowerShell**, then:
@@ -624,16 +633,16 @@ this document depends on this check.
 
 1. **Window A (admin):** Commerce → **Codes** → issue a code for **Package A**. Leave the price at
    the package default (₱4,498), expiry one month from today, quantity **1**. Copy the code it shows
-   (for example `ABCD-EFGH-JKLM`).
+   into your note (for example `ABCD-EFGH-JKLM`).
 2. **Window B (Incognito):** open `/register`. Choose **Registration code**, paste the code, press
    **Validate** (it should confirm the package). Leave **Sponsor** empty. In **Binary placement**,
    leave *Your upline in the binary tree* empty (it defaults to your sponsor's placement) and pick
    the **Left** side. Register `QA24_Sponsor`, with `qa24.sponsor@example.test` and password
    `Demo@1234`, tick the terms, press **Create account**.
-3. Issue a second Package A code. Register `QA24_Member_A` with sponsor `QA24_Sponsor`, binary
-   upline empty (it will use the sponsor), side **Left**.
-4. Issue a third code. Register `QA24_Member_B` with sponsor `QA24_Member_A`, **binary upline
-   `QA24_Sponsor`** (type it over the sponsor that appears), side **Right**.
+3. Issue a second Package A code and copy it into your note. Register `QA24_Member_A` with sponsor
+   `QA24_Sponsor`, binary upline empty (it will use the sponsor), side **Left**.
+4. Issue a third code and copy it too. Register `QA24_Member_B` with sponsor `QA24_Member_A`,
+   **binary upline `QA24_Sponsor`** (type it over the sponsor that appears), side **Right**.
 5. As admin, open Commerce → **Codes**. All three codes show **Used**, with the member who used each
    one and the time.
 
@@ -848,7 +857,7 @@ shown on the form and note the deviation. A standard member who cannot register 
   Members) and no activation. The only row this check adds is the spare code from step 4, and it
   stays **Expired** with no member in **Used by**.
 - The `QA24_Member_B` code (and the other two from QA24-02) still show the member who used each one,
-  unchanged. QA24-29 deletes the spare code with the rest of the run's codes.
+  unchanged. QA24-29 deletes the spare code with the other four run codes, by value.
 
 **If it fails** — a submit with an invalid, used or expired code creates a member or an activation:
 **Fail**. If the code from step 4.1 does not appear under **Expired**, reload Commerce → Codes before
@@ -1393,7 +1402,7 @@ afterwards: the queue and the board will have moved.
 
 1. **Window B:** register `QA24_NoPkg_Sponsor` as **Standard**, sponsor `QA24_Sponsor`, **binary
    upline `admin`**, side **Right**.
-2. **Window A:** issue a Package A code.
+2. **Window A:** issue a Package A code and copy it into your note.
 3. **Window B:** register `QA24_NoPkg_Member` with **Registration code**, sponsor
    `QA24_NoPkg_Sponsor`, binary upline blank, side **Left**.
 4. Finance → **Commissions** → filter **Status = Skipped** and **Source = `QA24_NoPkg_Member`**.
@@ -1566,14 +1575,31 @@ is a blocker, not something to work around.
    DELETE FROM users WHERE username LIKE 'QA24\_%';
    ```
 
-   Registration codes are **not** prefixed `QA24` — they are random (`KKWD-7PP5-53BF`). Delete the
-   batch you issued by date and issuer instead:
+   Registration codes are **not** prefixed `QA24` — they are random (`KKWD-7PP5-53BF`) — and the
+   Codes list has no run marker, so a delete by date and issuer would also remove any other code
+   `admin` issued after the run started. Delete **exactly** the codes the run issued instead: the
+   three from QA24-02, the spare from QA24-03 and the one from QA24-06, copied into your note (§3.6).
+   Check the list first — this `SELECT` must return **five** rows, no more:
+
+   ```sql
+   SELECT code, status, created_at
+     FROM reg_codes
+    WHERE code IN ('<QA24-02 code 1>', '<QA24-02 code 2>', '<QA24-02 code 3>',
+                   '<QA24-03 spare>', '<QA24-06 code>');
+   ```
+
+   Then delete those five values:
 
    ```sql
    DELETE FROM reg_codes
-    WHERE created_by = (SELECT id FROM users WHERE username = 'admin')
-      AND created_at >= '<the date you started this run>';
+    WHERE code IN ('<QA24-02 code 1>', '<QA24-02 code 2>', '<QA24-02 code 3>',
+                   '<QA24-03 spare>', '<QA24-06 code>');
    ```
+
+   If the note is missing a code, match it in Commerce → Codes by the member who used it
+   (`QA24_Sponsor`, `QA24_Member_A`, `QA24_Member_B`, `QA24_NoPkg_Member`) and add that value. Never
+   widen the delete to a date range: codes are random, so a date filter cannot tell the run's batch
+   from unrelated codes.
 
    The member delete then cascades to activations, commissions, binary nodes/awards, harvest rows
    and ledger lines. If any other FK refuses, **do not disable foreign-key checks** — restore the
@@ -1622,8 +1648,9 @@ is a blocker, not something to work around.
   `general_harvest_awards` is empty.
 - Reconcile exits **0**.
 
-**If it fails** — never delete rows that do not start with `QA24`; if a delete refuses because of a
-foreign key, report the constraint name instead of disabling checks. The known one is
+**If it fails** — never delete a row that is not part of the run: member accounts match `QA24\_%`,
+and a registration code must be one of the five values from your note. If a delete refuses because
+of a foreign key, report the constraint name instead of disabling checks. The known one is
 `binary_volume → binary_awards` (see step 3); a restore from the QA24-07 backup is always an
 acceptable finish. Step 5's business reset is the supported exception to the delete rule above: it
 removes every member and business row by design.
