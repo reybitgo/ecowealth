@@ -415,6 +415,22 @@ walkthrough's version row and correction list (item 21) record the change.
 
 **Suggested correction:** say “the staff accounts (and any pre-existing demo accounts)” or name the actual accounts the copy starts with. Do not make the result depend on demo data that the clean path does not create.
 
+**Resolution (walkthrough v3.14):** QA24-29 no longer asks the tester to confirm “normal demo
+accounts”. Step 4 names the accounts a copy actually starts with: a schema installed from
+`bin\db_install.php` seeds exactly `admin` and `superadmin` (`database/seeds/002_accounts.sql`) and
+no members, so the check says so and filters its query to those two usernames instead of printing
+the first ten ids. A development copy's five demo members (`juan`, `maria`, `peter`, `sarah`,
+`david`, `database/seeds/005_demo_tree.sql`) appear only as a copy-dependent extra, and the check
+states which step-5 path keeps them: the pre-run backup restore keeps them, the business reset
+removes them with every other member. The expected result now reads “No `QA24…` users or run-issued
+codes remain, and `admin` and `superadmin` are still there — a clean QA schema has no members to
+check beyond them”, with the demo-members sentence after it.
+
+The “normal demo accounts” phrase itself had already gone in v3.2, when DOC-01's rewrite of the
+step-5 reset replaced that bullet; v3.14 finishes the check by naming the staff accounts and
+removing the unfiltered `LIMIT 10` dump that made the result ambiguous. The walkthrough's version
+row and correction list (item 22) record the change.
+
 ---
 
 ## DOC-14 — QA24-29 leaves the Team Harvest seed marker set

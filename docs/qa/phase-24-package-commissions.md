@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.13** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, v3.11 gives QA24-18's no-volume check a query keyed to its three activations, v3.12 makes §3.4's backup command run on this Windows setup, and v3.13 gives §5's URL column the full `/ecowealth/system/` path. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.14** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, v3.11 gives QA24-18's no-volume check a query keyed to its three activations, v3.12 makes §3.4's backup command run on this Windows setup, v3.13 gives §5's URL column the full `/ecowealth/system/` path, and v3.14 names the accounts QA24-29 expects to survive so the check no longer depends on demo data a fresh schema never seeds. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
@@ -35,7 +35,8 @@ you never "fix" data.
 > **18 is new in v3.10** and makes QA24-29 delete only the codes the run issued;
 > **19 is new in v3.11** and gives QA24-18's no-volume check a query keyed to its three
 > activations; **20 is new in v3.12** and makes §3.4's backup command work on this Windows
-> setup; **21 is new in v3.13** and gives §5's URL column the full `/ecowealth/system/` path:
+> setup; **21 is new in v3.13** and gives §5's URL column the full `/ecowealth/system/` path;
+> **22 is new in v3.14** and names the accounts QA24-29 expects to survive after the cleanup:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -136,6 +137,15 @@ you never "fix" data.
 >     `/ecowealth/system/`, the same prefix as the header's app URL, so it opens the screen as it
 >     stands. The **Where** rows in the checks keep the shorter `/admin/...` form; add
 >     `ecowealth/system` in front when you paste one of those.
+>
+> 22. **QA24-29 names the accounts that must survive; it does not assume demo data.** A fresh QA
+>     schema from `bin\db_install.php` seeds **two** staff accounts — `admin` and `superadmin`
+>     (`database/seeds/002_accounts.sql`) — and no members, so "the seeded `admin` and normal demo
+>     accounts still there" asked the tester to confirm accounts that path never creates. Step 4 now
+>     says so and filters its query to the two staff names instead of printing the first ten ids; the
+>     five demo members of a development copy (`juan`, `maria`, `peter`, `sarah`, `david`,
+>     `database/seeds/005_demo_tree.sql`) appear only as an extra that the backup-restore path in
+>     step 5 keeps — the business reset removes every member by design.
 
 ---
 
@@ -1663,11 +1673,21 @@ is a blocker, not something to work around.
    The member delete then cascades to activations, commissions, binary nodes/awards, harvest rows
    and ledger lines. If any other FK refuses, **do not disable foreign-key checks** — restore the
    backup instead and report which constraint blocked you.
-4. Confirm the seeded accounts are untouched:
+4. Confirm the staff accounts are untouched. A fresh QA schema seeds exactly two — `admin` and
+   `superadmin` (`database/seeds/002_accounts.sql`). A development copy also has the five demo
+   members `juan`, `maria`, `peter`, `sarah` and `david` (`database/seeds/005_demo_tree.sql`). Look
+   the staff rows up by name rather than reading the first ten ids:
 
    ```sql
-   SELECT username, role FROM users ORDER BY id LIMIT 10;
+   SELECT username, role, member_status
+     FROM users
+    WHERE username IN ('admin', 'superadmin')
+    ORDER BY id;
    ```
+
+   Both rows must still be there — `admin` with role `admin`, `superadmin` with role `superadmin`.
+   Whether the demo members are still there depends on step 5: the backup restore keeps them, the
+   business reset removes them with every other member.
 
 5. Return the General Harvest board to unarmed. The deletes above remove the awards, but
    `general_harvest_board` is a **singleton**: it is not a child of `users`, so the member delete
@@ -1701,8 +1721,10 @@ is a blocker, not something to work around.
 **You should see**
 
 - All settings back to their recorded **before** values; Package A binary off.
-- No `QA24…` users or run-issued codes remain; the staff accounts are still there. A copy that keeps
-  its demo members (the backup-restore path in step 5) keeps them too.
+- No `QA24…` users or run-issued codes remain, and `admin` and `superadmin` are still there — a clean
+  QA schema has no members to check beyond them. A copy that keeps its five demo members (the
+  backup-restore path in step 5) still has `juan`, `maria`, `peter`, `sarah` and `david` too; the
+  business reset in step 5 removes them with every other member.
 - The board is unarmed — `baseline_n`, `armed_at` and `armed_by` NULL, `settled_n` **0** — and
   `general_harvest_awards` is empty.
 - Reconcile exits **0**.
