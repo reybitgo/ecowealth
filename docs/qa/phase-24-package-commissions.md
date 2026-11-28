@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.10** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, and v3.10 deletes only the registration codes the run issued. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.11** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, and v3.11 gives QA24-18's no-volume check a query keyed to its three activations. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
@@ -32,7 +32,9 @@ you never "fix" data.
 > rejection. **15 is new in v3.7** and takes QA24-04's second approval off the manual flow;
 > **16 is new in v3.8** and makes the admin login the account of the copy you are testing;
 > **17 is new in v3.9** and turns QA24-19's empty-queue recovery into a stop-and-restart;
-> **18 is new in v3.10** and makes QA24-29 delete only the codes the run issued:
+> **18 is new in v3.10** and makes QA24-29 delete only the codes the run issued;
+> **19 is new in v3.11** and gives QA24-18's no-volume check a query keyed to its three
+> activations:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -112,6 +114,13 @@ you never "fix" data.
 >     unrelated codes on a copy that already had some. The cleanup now deletes the five values the
 >     run issued — the three from QA24-02, QA24-03's spare and QA24-06's — from the note §3.6 asks
 >     you to keep, after a `SELECT` confirms the list. Step 3 no longer widens to a date range.
+>
+> 19. **QA24-18's "no volume or award rows" is a query, not a table count.** By this check the run
+>     already holds `binary_volume` rows from the legitimate pair and the earlier referral
+>     activations — 16 in the automated run — so a blank `SELECT COUNT(*) FROM binary_volume` cannot
+>     say whether the three zero-point approvals wrote anything. Step 6 now runs one query keyed to
+>     the three activation ids it approved, and expects `award_rows = 0` and `volume_rows = 0` on
+>     each of its rows.
 
 ---
 
@@ -1455,12 +1464,29 @@ an ineligible member.
 3. Set Package A `binary_enabled = 0`; approve `QA24_Zero2`; check its row again.
 4. Set `package_binary_enabled = 0` (global); approve `QA24_Zero3`; check its row.
 5. Restore Package A to `binary_enabled = 1`, `binary_points = 1000`, and the global switch **on**.
-6. Confirm no `binary_awards` or `binary_volume` rows were written by any of the three.
+6. Confirm the three wrote no rows. The filter is their own activations, not the whole table:
+
+   ```sql
+   SELECT a.id, u.username, a.binary_points, a.binary_total,
+          (SELECT COUNT(*) FROM binary_awards ba WHERE ba.activation_id = a.id) AS award_rows,
+          (SELECT COUNT(*) FROM binary_volume bv WHERE bv.activation_id = a.id) AS volume_rows
+     FROM activations a
+     JOIN users u ON u.id = a.user_id
+    WHERE u.username IN ('QA24_Zero1', 'QA24_Zero2', 'QA24_Zero3')
+    ORDER BY a.id;
+   ```
+
+   Do not count the whole tables: the earlier pair and referral activations have already written
+   `binary_volume` rows — **16** in the automated run — so a table-wide `SELECT COUNT(*)` cannot
+   tell these three apart from the pair. Both tables store the `activation_id` that caused the row
+   (`binary_volume`'s `chk_bv_own` and `chk_bv_team` require it when `source = 'activation'`), so
+   this filter is the complete answer.
 
 **You should see**
 
 - Each of the three activations has `binary_points = 0`, `binary_total = 0.00`, and no volume/award
-  rows.
+  rows — step 6's query returns its three rows with `award_rows = 0` and `volume_rows = 0`, whatever
+  table-wide counts the copy has by then.
 - The referral ladder still paid its normal amounts for each activation (extra rows are expected).
 - After step 5 the package and switches are back to the QA values.
 

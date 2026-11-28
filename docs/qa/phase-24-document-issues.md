@@ -313,6 +313,30 @@ version row and correction list (item 18) record the change.
 
 **Suggested correction:** give a query keyed to the three activation IDs (for example, select the three latest `activations.id` for the zero members, then count `binary_volume WHERE activation_id IN (...)` and `binary_awards WHERE activation_id IN (...)`), or state that the expected count is unchanged from before the three approvals and give the before/after numbers.
 
+**Resolution (walkthrough v3.11):** QA24-18 step 6 no longer asks for a table-wide confirmation. It
+runs a query keyed to the three activations the check approved:
+
+```sql
+SELECT a.id, u.username, a.binary_points, a.binary_total,
+       (SELECT COUNT(*) FROM binary_awards ba WHERE ba.activation_id = a.id) AS award_rows,
+       (SELECT COUNT(*) FROM binary_volume bv WHERE bv.activation_id = a.id) AS volume_rows
+  FROM activations a
+  JOIN users u ON u.id = a.user_id
+ WHERE u.username IN ('QA24_Zero1', 'QA24_Zero2', 'QA24_Zero3')
+ ORDER BY a.id;
+```
+
+Its three rows must show `award_rows = 0` and `volume_rows = 0`, and the check's **You should see**
+now says so. Both tables record the activation that caused the row — `binary_volume`'s `chk_bv_own`
+and `chk_bv_team` require `activation_id` when `source = 'activation'`, and `binary_awards`'s
+`chk_ba_source` does the same — so an approval that wrote a pair would appear under its own
+`activation_id`. The step also says why a table count is not the check: by QA24-18 the run holds
+`binary_volume` rows from the legitimate pair and the earlier referral activations (16 in the
+automated run — the runner counted them and deliberately left the total unasserted,
+`qa24_http_run_20261128.php` lines 680–681), so `SELECT COUNT(*) FROM binary_volume` cannot
+distinguish the three zero-point approvals from the pair that was supposed to write rows. The
+walkthrough's version row and correction list (item 19) record the change.
+
 ---
 
 ## DOC-11 — §3.4 backup command is fragile on this Windows setup
