@@ -179,6 +179,17 @@ The walkthrough's version row and correction list (item 13) record the change.
 
 **Suggested correction:** move the empty-reason attempt **before** the valid rejection, while D is still `pending_review`, or state that the empty-reason validation is a service-level test and provide a fresh pending activation for it. The expected message should name the minimum length (currently “at least 3 characters”), not simply “refused.”
 
+**Resolution (walkthrough v3.6):** QA24-05 now makes both refusals **before** the valid rejection,
+while D is still `pending_review`. Step 2 presses **Reject** with the reason box empty, and the
+confirmation box refuses to post (*Enter rejection reason (at most 160 characters).*); step 3 types
+a two-character reason (`no`), which the box accepts and the server refuses with *Enter a short
+reason (at least 3 characters) so the member knows what to fix.* Step 4 then rejects with a real
+reason. D stays **Awaiting review** through both refusals: `ActivationService::reject()` validates
+the reason before it opens the transaction, so nothing is written, and the row keeps its controls
+because its status is still `pending_review` (`system/app/views/admin/activations/_rows.php`). The
+check's expected result now records both refusals and names the minimum length; the walkthrough's
+version row and correction list (item 14) record the change.
+
 ---
 
 ## DOC-06 — QA24-04's “approve a second time” is not a UI step

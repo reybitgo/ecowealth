@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.5** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, and v3.5 added QA24-18's missing proof-submission step. These corrections remain manual checks (see the box below and `phase-24-run-report.md`) |
+| **Document version** | **v3.6** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, and v3.6 made QA24-05's reason check reachable before the rejection. These corrections remain manual checks (see the box below and `phase-24-run-report.md`) |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -28,7 +28,8 @@ you never "fix" data.
 > constraint that stopped the original delete and was not itself executed end to end. **10 is new in
 > v3.2** and finishes that cleanup. **11 is new in v3.3** and corrects one quoted amount. **12 is new
 > in v3.4** and makes QA24-03's expired case runnable. **13 is new in v3.5** and supplies QA24-18's
-> missing proofs:
+> missing proofs. **14 is new in v3.6** and makes QA24-05's reason check reachable before the
+> rejection:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -70,6 +71,14 @@ you never "fix" data.
 >     the QA24-04 steps 2–3 flow for each member — **Membership** → **Payment proof** → GCash →
 >     Package A → reference → receipt → **Submit for review** — and only then approves them one at a
 >     time.
+>
+> 14. **QA24-05 tests the reason validation before it rejects.** The Reject control only exists on a
+>     row that is **Awaiting review**, so the old "try rejecting again with the reason field empty"
+>     ran after the row had lost its controls and could never be performed. The check now makes both
+>     refusals first, while D is still awaiting review: an empty reason is refused by the confirmation
+>     box (*Enter rejection reason (at most 160 characters).*), and a two-character reason such as
+>     `no` is refused by the server with *Enter a short reason (at least 3 characters) so the member
+>     knows what to fix.* The valid rejection follows, unchanged.
 
 ---
 
@@ -1239,7 +1248,7 @@ afterwards: the queue and the board will have moved.
 
 | | |
 |---|---|
-| **What it proves** | A rejection explains itself, moves no money, and leaves the member able to try again. |
+| **What it proves** | A rejection refuses a missing or too-short reason before it changes anything, then explains itself, moves no money, and leaves the member able to try again. |
 | **Before** | QA24-04 passed, Part 5 finished and its totals recorded (registering D adds a Harvest position) |
 | **Where** | `/membership` (member) → Commerce → Activations (admin) |
 | **Evidence** | `QA24-05-admin-reject.png` |
@@ -1249,17 +1258,24 @@ afterwards: the queue and the board will have moved.
 
 1. **Window B:** register `QA24_Member_D` with **Activate later**, sponsor `QA24_Member_C`, binary
    upline blank, side **Left**. Submit a payment proof for Package A as in QA24-04.
-2. **Window A:** Commerce → **Activations** → on D's row type a **Rejection reason** (for example
-   "Blurred receipt") → press **Reject**.
-3. Try rejecting again with the reason field empty.
+2. **Window A:** Commerce → **Activations**. D's row is **Awaiting review**. Press **Reject**, leave
+   the reason box empty and confirm. The box refuses to send it: *Enter rejection reason (at most
+   160 characters).* Press **Keep reviewing** to close it.
+3. Press **Reject** again, type `no` (two characters) and confirm. The queue reloads with *Enter a
+   short reason (at least 3 characters) so the member knows what to fix.* — and D is still
+   **Awaiting review**, with its Approve and Reject controls.
+4. Press **Reject** once more, type a real reason (for example "Blurred receipt") and confirm.
 
 **You should see**
 
-- D's request is **Rejected** with your reason; `QA24_Member_D` is still **Pending** with no package.
+- Steps 2 and 3 changed nothing: D stayed **Awaiting review** and no rejection was recorded.
+- D's request is now **Rejected** with your reason; `QA24_Member_D` is still **Pending** with no
+  package.
 - D's **Activation history** shows the rejected row and the reason.
 - No wallet debit and **no commission** was paid by the rejection (compare C's awards, which are
   unchanged).
-- The empty-reason rejection is refused.
+- The empty reason was refused by the confirmation box, and the two-character reason was refused by
+  the server naming its minimum length.
 - The member can open a **new** request (you will do that in QA24-12).
 
 > **Expected side effect.** Registering D gives `QA24_Member_C` its first direct, so C now qualifies:
