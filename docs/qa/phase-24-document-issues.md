@@ -57,6 +57,13 @@ This is a real inconsistency, not a warning: the next `php bin/wallet_reconcile.
 - Alternatively, state that QA24-29's expected result is “restore the pre-run backup” rather than “reconcile exits 0 after the deletes.”
 - The header already notes (item 8) that the replacement cleanup “was not itself executed end to end”; this run confirms the consequence.
 
+**Resolution (walkthrough v3.2):** QA24-29 step 5 now runs the supported business reset
+(`php bin\db_reset.php --force --confirm=<database>`) after the deletes, with the pre-run backup
+restore as the alternative for a copy whose demo members must survive. The reset returns the board to
+`(NULL, NULL, NULL, 0)`, empties `general_harvest_awards` and clears `team_harvest_ledger_since`
+(DOC-14); `wallet_reconcile.php` then exits 0. QA24-29's expected result now includes the unarmed
+board, and `QA24-29-reset.txt` records the reset output.
+
 ---
 
 ## DOC-02 — QA24-11 quotes the wrong level-4 skipped amount

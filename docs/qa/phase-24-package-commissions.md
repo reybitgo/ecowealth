@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.1** — the amounts and states below were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); the admin settings, package and code screens and the QA24-29 cleanup remain manual checks (see the box below and `phase-24-run-report.md`) |
+| **Document version** | **v3.2** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changes only the QA24-29 cleanup, which remains a manual check (see the box below and `phase-24-run-report.md`) |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -25,7 +25,8 @@ you never "fix" data.
 > the walkthrough against a fresh schema; the run report and raw log are in
 > `docs/qa/evidence/phase-24/run/`. Items 1–4 were already v2 fixes; **5–9 are new in v3** and were
 > each confirmed by the run — except item 8's replacement cleanup, which is the workaround for the
-> constraint that stopped the original delete and was not itself executed end to end:
+> constraint that stopped the original delete and was not itself executed end to end. **10 is new in
+> v3.2** and finishes that cleanup:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -50,6 +51,10 @@ you never "fix" data.
 > 9. The three zero-point members need **free binary slots** (upline `QA24_Team_1a/2a/3a`); the
 >    sponsor's own left slot is taken, and the form refuses with *"The left slot under member #3 is
 >    already taken."*
+> 10. **QA24-29 ends with a business reset.** Deleting the `QA24…` users cascades the General Harvest
+>     awards away, but `general_harvest_board` is a singleton and stays armed, so the next
+>     `wallet_reconcile.php` exits 1 (`board_bounds`). QA24-29 step 5 now runs `bin\db_reset.php`,
+>     which returns the board to unarmed; the deletes alone are not a finish.
 
 ---
 
@@ -177,7 +182,8 @@ copy, paste and compare.
 
 The queries in this document all start by looking up an account id from its username, so you can
 paste them exactly as written. **Never run a query that changes data** (`UPDATE`, `DELETE`, `INSERT`)
-except the `DELETE` statements in QA24-29, which remove only `QA24…` rows.
+except the `DELETE` statements and the `bin\db_reset.php` step in QA24-29 (read both before you run
+them).
 
 ### 3.6 What you need on screen
 
@@ -185,7 +191,7 @@ except the `DELETE` statements in QA24-29, which remove only `QA24…` rows.
 - A text note (Notepad is fine) for the **before** values you record in QA24-07 and the codes you
   issue in QA24-02. Codes look like `ABCD-EFGH-JKLM`.
 - A folder for screenshots.
-- A fresh terminal in `C:\laragon\www\ecowealth\system` for the two commands near the end. Open
+- A fresh terminal in `C:\laragon\www\ecowealth\system` for the commands near the end. Open
   **PowerShell**, then:
 
 ```powershell
@@ -1409,10 +1415,10 @@ is a blocker, not something to work around.
 
 | | |
 |---|---|
-| **What it proves** | You can return the system to its pre-test state without touching seeded data. |
+| **What it proves** | You can return the system to its pre-test state without touching the seeded staff, catalogue or settings. |
 | **Before** | Every other check is finished and its evidence saved. |
 | **Where** | Settings → Commissions; Catalogue → Packages; phpMyAdmin; PowerShell |
-| **Evidence** | `QA24-29-settings-restored.png`, `QA24-29-users-after-delete.png`, `QA24-29-reconcile.txt` |
+| **Evidence** | `QA24-29-settings-restored.png`, `QA24-29-users-after-delete.png`, `QA24-29-reset.txt`, `QA24-29-reconcile.txt` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked |
 
 **Steps**
@@ -1451,18 +1457,49 @@ is a blocker, not something to work around.
    SELECT username, role FROM users ORDER BY id LIMIT 10;
    ```
 
-5. Run `php bin\wallet_reconcile.php` once more.
+5. Return the General Harvest board to unarmed. The deletes above remove the awards, but
+   `general_harvest_board` is a **singleton**: it is not a child of `users`, so the member delete
+   cannot cascade it, and it stays armed (`baseline_n = 0`, `settled_n` above 0). That is what makes
+   the next `wallet_reconcile.php` fail `board_bounds`. Do **not** edit the board by hand. Use the
+   supported business reset — its *Return the General Harvest board to unarmed* step also clears the
+   Team Harvest seed marker (`team_harvest_ledger_since`):
+
+   ```powershell
+   cd C:\laragon\www\ecowealth\system
+   php bin\db_reset.php --dry-run
+   php bin\db_reset.php --force --confirm=<your database>
+   ```
+
+   Replace `<your database>` with the name in phpMyAdmin (`ecowealth_sneat`, or your QA schema). The
+   dry run writes nothing; the real run exits **0** and prints *Reset complete and verified*, with the
+   step *Return the General Harvest board to unarmed* marked `OK`.
+
+   A business reset deletes **every member and every business row** (it keeps the staff accounts, the
+   catalogue and the settings). On a copy whose demo members must survive, restore the pre-run backup
+   from §3.4 instead — that also returns the board to unarmed. Either way, the board must read
+   `NULL, NULL, NULL, 0` before step 6:
+
+   ```sql
+   SELECT baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board;
+   SELECT COUNT(*) FROM general_harvest_awards;
+   ```
+
+6. Run `php bin\wallet_reconcile.php` once more.
 
 **You should see**
 
 - All settings back to their recorded **before** values; Package A binary off.
-- Zero `QA24…` users and codes; the seeded `admin` and normal demo accounts still there.
+- No `QA24…` users or run-issued codes remain; the staff accounts are still there. A copy that keeps
+  its demo members (the backup-restore path in step 5) keeps them too.
+- The board is unarmed — `baseline_n`, `armed_at` and `armed_by` NULL, `settled_n` **0** — and
+  `general_harvest_awards` is empty.
 - Reconcile exits **0**.
 
 **If it fails** — never delete rows that do not start with `QA24`; if a delete refuses because of a
 foreign key, report the constraint name instead of disabling checks. The known one is
 `binary_volume → binary_awards` (see step 3); a restore from the QA24-07 backup is always an
-acceptable finish.
+acceptable finish. Step 5's business reset is the supported exception to the delete rule above: it
+removes every member and business row by design.
 
 ---
 
