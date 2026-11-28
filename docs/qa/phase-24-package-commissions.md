@@ -4,14 +4,15 @@ This is a **manual test script** for one part of EcoWealth: the money a member i
 package is activated. You do not need to know how the system is built. You need a browser, the app
 running on your own computer, and the patience to follow the steps in order.
 
-You will create thirteen test accounts, activate packages one at a time, and compare what the screens
-and the database say with what this document says they should say. Where they disagree, you record a
-defect. You never change code and you never "fix" data.
+You will create sixteen test accounts — thirteen in the main tree plus the three zero-point controls of
+QA24-18 — activate packages one at a time, and compare what the screens and the database say with what
+this document says they should say. Where they disagree, you record a defect. You never change code and
+you never "fix" data.
 
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3** — executed end to end against `ecowealth_sneat_qa24`; every expectation below is what the app actually produced (see the box below and `phase-24-run-report.md`) |
+| **Document version** | **v3.1** — the amounts and states below were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); the admin settings, package and code screens and the QA24-29 cleanup remain manual checks (see the box below and `phase-24-run-report.md`) |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -23,7 +24,8 @@ defect. You never change code and you never "fix" data.
 > **If you tested v1 or v2 of this document, discard those results.** v3 was corrected by executing
 > the walkthrough against a fresh schema; the run report and raw log are in
 > `docs/qa/evidence/phase-24/run/`. Items 1–4 were already v2 fixes; **5–9 are new in v3** and were
-> each reproduced in the run:
+> each confirmed by the run — except item 8's replacement cleanup, which is the workaround for the
+> constraint that stopped the original delete and was not itself executed end to end:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -132,6 +134,11 @@ When a step says *"as `QA24_Sponsor`"*, sign that account in inside Window B. Wh
 admin"*, use Window A. Never sign in as two members in the same window: the session replaces itself
 and you will see the wrong dashboard.
 
+**Every registration signs that window in as the new member.** Sign out (or open a fresh Incognito
+window) before the next registration: a signed-in member may only place a new member inside their own
+binary subtree or their sponsor's, so staying signed in as the previous account is refused with
+*That upline is outside your subtree.* — that is the form protecting the tree, not a defect.
+
 ### 3.3 Create the evidence folder
 
 All screenshots and terminal output go in:
@@ -170,7 +177,7 @@ copy, paste and compare.
 
 The queries in this document all start by looking up an account id from its username, so you can
 paste them exactly as written. **Never run a query that changes data** (`UPDATE`, `DELETE`, `INSERT`)
-except the single `DELETE` in QA24-29, which removes only `QA24…` rows.
+except the `DELETE` statements in QA24-29, which remove only `QA24…` rows.
 
 ### 3.6 What you need on screen
 
@@ -399,9 +406,9 @@ Part 6 30 min · Part 7 15 min.
 
 **Steps**
 
-1. Open Settings → **Commissions**. The page is a list of cards: *Direct referral*, *Indirect
-   referral*, *Repeat purchase*, *Royalty*, **Team Harvest**, **General Harvest**, **Binary**,
-   **Package binary**.
+1. Open Settings → **Commissions**. One form holds these sub-blocks: *Direct referral bonus*,
+   *Indirect referral (unilevel)*, *Repeat-purchase bonus*, *Royalty bonus*, **Team Harvest bonus**,
+   **General Harvest bonus**, **Product binary**, **Package binary**.
 2. In your notes, write down the **current** value of every control in the table below. You restore
    them in QA24-29, so a wrong "before" value means you cannot reset the system.
 3. Change exactly these controls (leave everything else alone):
@@ -498,8 +505,10 @@ still empty — before you register anybody.
 **Steps**
 
 1. Catalogue → **Packages** → open **Package A**.
-2. Find the **Package binary** card. Switch **Package binary** on, set **points** to `1000`, save.
-3. Reopen Package A: the switch is on, points `1000`, and the list badge reads **Binary 1,000 pts**.
+2. Find the **Package binary** card. Switch **Package binary enabled** on, set **Points per
+   activation** to `1000`, save.
+3. Reopen Package A: the switch is on, points `1000`, and the list badge reads **Package binary 1000
+   pts**.
 4. Settings → **Commissions** → **Package binary** card: switch **Package binary enabled** on, and
    leave **Require a binary package to earn package pairs** on.
 5. Save, reload, and confirm both switches are still on.
@@ -539,9 +548,9 @@ this document depends on this check.
    (for example `ABCD-EFGH-JKLM`).
 2. **Window B (Incognito):** open `/register`. Choose **Registration code**, paste the code, press
    **Validate** (it should confirm the package). Leave **Sponsor** empty. In **Binary placement**,
-   leave *Your upline in the binary tree* empty (it shows *Using @admin*) and pick the **Left**
-   side. Register `QA24_Sponsor`, with `qa24.sponsor@example.test` and password `Demo@1234`, tick
-   the terms, press **Create account**.
+   leave *Your upline in the binary tree* empty (it defaults to your sponsor's placement) and pick
+   the **Left** side. Register `QA24_Sponsor`, with `qa24.sponsor@example.test` and password
+   `Demo@1234`, tick the terms, press **Create account**.
 3. Issue a second Package A code. Register `QA24_Member_A` with sponsor `QA24_Sponsor`, binary
    upline empty (it will use the sponsor), side **Left**.
 4. Issue a third code. Register `QA24_Member_B` with sponsor `QA24_Member_A`, **binary upline
@@ -551,7 +560,7 @@ this document depends on this check.
 
 **You should see**
 
-- Three members, each **Active** with **Package A**, payment method `code`.
+- Three members, each **Active** with **Package A**; the member page's **Joined as** tile reads **Code**.
 - `QA24_Sponsor`'s binary placement: upline `admin`, side left (Commerce → Members →
   `QA24_Sponsor` → **Binary placement** card).
 - `QA24_Member_A`: upline `QA24_Sponsor`, left. `QA24_Member_B`: upline `QA24_Sponsor`, **right**.
@@ -559,8 +568,9 @@ this document depends on this check.
   - `QA24_Sponsor`: **₱500** direct (from A) **+ ₱100** indirect level 2 (from B) **+ ₱100** binary
     pair (B completed the pair).
   - `QA24_Member_A`: **₱500** direct (from B).
-  - `admin`: nothing — its own two awards (direct ₱500 from Sponsor's activation, level 4 later) are
-    **skipped** because the company account holds no package.
+  - `admin`: nothing — every award addressed to it is **skipped** because the company account holds
+    no package: ₱500 at level 1 (Sponsor's activation), ₱100 at level 2 (A's), ₱50 at level 3 (B's).
+    C adds a ₱40 level-4 skip later.
 
 **If it fails** — "code not recognised": check you copied the whole code and that it is for Package
 A. "Upline is not in the binary tree": the binary upline must already be placed; `QA24_Sponsor` is,
@@ -644,7 +654,8 @@ after step 2. If a member is created but stays **Pending**, the code mode was no
 - Exactly **one** `pair` award for `QA24_Sponsor`: status `credited`, amount **₱100.00**,
   `pair_count = 1`, `hold_days = 0`, with an `activation_id` and a `ledger_id`.
 - One ledger row of **₱100.00** with `ref_type = binary` and the award's id.
-- The wallet shows one **Commission** credit of ₱100 and **Withdrawable** is higher by ₱100.
+- The wallet shows one credit of ₱100 labelled **Product binary** (a package pair shares the `binary`
+  ledger stream) and **Withdrawable** is higher by ₱100.
 - No second pair award, no second credit.
 
 **If it fails** — the award is missing: confirm both members are activated *and* on opposite sides
@@ -654,7 +665,7 @@ after step 2. If a member is created but stays **Pending**, the code mode was no
 
 | | |
 |---|---|
-| **What it proves** | Finance can trace the pair to its activation and wallet line, and the screen is read-only. |
+| **What it proves** | Finance can read the pair's activation source and open its wallet line, and the screen is read-only. |
 | **Before** | QA24-16 passed. |
 | **Where** | Finance → Commissions → **binary** tab (`/admin/commissions?ledger=binary`) |
 | **Evidence** | `QA24-17-binary-ledger.png` |
@@ -663,15 +674,17 @@ after step 2. If a member is created but stays **Pending**, the code mode was no
 **Steps**
 
 1. As admin, open the binary ledger.
-2. Find the pair row and read its **Source** column; follow the activation link, then the wallet link.
+2. Find the pair row and read its **Source**, **Points** and **Rate** columns, then open its wallet
+   link. There is no activation link on this row; **Source** is the activation reference.
 3. Look for any edit or delete control.
 
 **You should see**
 
-- One credited pair row for `QA24_Sponsor`, source **Package activation**.
-- Both links open and agree with QA24-16 (same amount, same member).
+- One credited pair row for `QA24_Sponsor`: kind **Pair**, source **Package activation**, **2000**
+  points, **10.000%**, **₱100.00**, status **Credited**, with a wallet link.
+- Tiles: **Total credited ₱100.00**, **Awards 1**, **Recipients 1**, **Package pairs 1**,
+  **Package points 2000 pts**, **Pending release ₱0.00** — a package pair is credited at once.
 - No edit, delete or "reverse" button (reversal is a separate audited tool, not this screen).
-- Header counters (credited money, pending liability, award count) match the rows.
 
 ---
 
@@ -691,7 +704,9 @@ after step 2. If a member is created but stays **Pending**, the code mode was no
 
 Register the six Team accounts exactly as in §7.3 — **sponsor is not blank**, this is the part v1
 got wrong. For each: `/register` → **Standard** (free) → fill sponsor and binary upline as listed →
-username → email → password `Demo@1234` → terms → **Create account**.
+username → email → password `Demo@1234` → terms → **Create account**. Sign out (or open a fresh
+Incognito window) before **each** account: registering signs you in as the member you just created,
+and a signed-in member may only place inside their own subtree.
 
 | Username | Sponsor | Binary upline | Side |
 |---|---|---|---|
@@ -765,7 +780,8 @@ shown on the form and note the deviation. A standard member who cannot register 
   - `QA24_Member_B` **₱500** direct,
   - `QA24_Member_A` **₱100** indirect level 2,
   - `QA24_Sponsor` **₱50** indirect level 3.
-- Approving the same request a second time is refused ("already processed") and changes nothing.
+- Approving the same request a second time is refused with *This activation has already been
+  completed. Nothing was changed.* and changes nothing.
 - The proof image returns `403` to a member and a login redirect to a guest (you can check this by
   copying the proof URL into Window B while signed out).
 
@@ -823,7 +839,8 @@ as the member named in each check (Window B) and as admin (Window A).
 - Exactly one indirect row: level 2, `QA24_Sponsor`, **credited ₱100.00**, source B.
 - One direct row: level 1, `QA24_Member_A`, **credited ₱500.00**, source B.
 - `QA24_Member_A`'s Earnings: **Direct ₱500**, **Indirect ₱0**.
-- Totals so far: `QA24_Sponsor` ₱600 commission (₱500 direct + ₱100 indirect); `QA24_Member_A` ₱500.
+- Totals by the end of Part 3: `QA24_Sponsor` **₱650** commission (₱500 direct + ₱150 indirect —
+  B's ₱100 and C's ₱50); `QA24_Member_A` **₱600** (₱500 direct + ₱100 indirect from C).
 
 ### QA24-11 — Activation 3: `QA24_Member_C` pays three levels and skips level 4
 
@@ -846,7 +863,7 @@ as the member named in each check (Window B) and as admin (Window A).
   - level 1 `QA24_Member_B` **₱500** — credited;
   - level 2 `QA24_Member_A` **₱100** — credited;
   - level 3 `QA24_Sponsor` **₱50** — credited;
-  - level 4 `admin` **₱50** — **skipped**, reason *recipient has no package*, no ledger link.
+  - level 4 `admin` **₱40** — **skipped**, reason *recipient has no package*, no ledger link.
 - `QA24_Member_B` direct ₱500; `QA24_Member_A` direct ₱500 + indirect ₱100; `QA24_Sponsor` indirect
   total **₱150** (₱100 from B + ₱50 from C).
 - The skipped ₱50 is not redirected to anyone — that is the level-4 company-root skip, and this check
@@ -899,7 +916,8 @@ as the member named in each check (Window B) and as admin (Window A).
 - Rows show recipient, source, package, type/level, amount, status, activation and date. Credited
   rows are green; skipped rows are muted and marked **not paid**.
 - The detail view traces award → activation → wallet entry and offers no edit or delete.
-- CSV matches the screen. The audit log records a `commissions.export` row.
+- CSV matches the screen. The audit log records a `commission.export` row (singular: that is the
+  action string the package ledger writes).
 - As a member, `/admin/commissions` returns **403**; as a guest it redirects to `/login`.
 
 **If it fails** — a skipped row without a "not paid" marker, or a credited row without a wallet link:
@@ -915,7 +933,7 @@ as the member named in each check (Window B) and as admin (Window A).
 |---|---|
 | **What it proves** | Qualification happens on a registration, one row per member, with contiguous positions and a direct count recorded at that moment. |
 | **Before** | Parts 2–4 passed. |
-| **Where** | phpMyAdmin (`harvest_queue`); System → Settings (the ledger baseline) |
+| **Where** | phpMyAdmin (`harvest_queue`, `settings`); System → Settings → Commissions (the **Seeded** status strip) |
 | **Evidence** | `QA24-19-harvest-queue.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked |
 
@@ -1012,8 +1030,10 @@ and re-run this query; if rows then appear, mark this check **Pass with note**. 
 
 **You should see**
 
-- Position **#1**; gate = **1 direct**.
-- Level 1 **Paid ₱1,000**; levels 2–10 unpaid (0 teammates at those depths).
+- Position **#1**, with *You qualified for position #1 when you registered your 1st direct member.*
+  and the gate **1 direct**.
+- Level 1 **Paid ₱1,000**; level 2 **In progress** (2 of 9 slots filled, the queue needs 12); levels
+  3–10 empty.
 - The CSV matches the screen; the stats cards do not change when you switch source filters.
 
 ### QA24-22 — The admin Team Harvest ledger
@@ -1033,8 +1053,9 @@ and re-run this query; if rows then appear, mark this check **Pass with note**. 
 
 **You should see**
 
-- One credited row: `QA24_Sponsor`, level 1, ₱1,000.
-- Header counters equal the SQL sum (`SUM(amount) = 1000.00`).
+- One credited row: `QA24_Sponsor`, level 1, ₱1,000.00.
+- Tiles: **Credited ₱1,000.00**, **Awards 1**, **Recipients 1**, **Before go-live ₱0.00**,
+  **Open liability ₱0.00** — level 2 needs 12 qualified members, so nothing is due yet.
 - The export matches the screen and an audit row `team_harvest.export` exists.
 
 ### QA24-23 — Confirm the board's baseline and its first settled position
@@ -1049,8 +1070,9 @@ and re-run this query; if rows then appear, mark this check **Pass with note**. 
 
 **Steps**
 
-1. As admin, open the general_harvest ledger and read the board strip: baseline **N₀ = 0**, settled
-   positions equal to the current queue length (**6**).
+1. As admin, open the general_harvest ledger: the header badges read **Armed** and **Paying**. In the
+   **Level distribution** table, level 1 shows **1** paid award (**₱2,000.00**) and one block waiting
+   at **N = 7**.
 2. In phpMyAdmin:
 
    ```sql
@@ -1068,12 +1090,13 @@ and re-run this query; if rows then appear, mark this check **Pass with note**. 
   which happens in Part 6.
 
 > **The "N ≥ 4" rule.** Position #1's level-1 block needs the queue to reach 4; position #2 needs 7;
-> each later position needs three more. So at N = 6 exactly one award exists — and once Part 6 lifts
-> N to 7 and then 8, position #2 pays too (that is the +₱2,000 note in QA24-05 and §16).
+> each later position needs three more. So at N = 6 exactly one award exists — and when Part 6
+> lifts N to 7 (D's registration), position #2 pays too (that is the +₱2,000 note in QA24-05 and
+> §16). N reaches 8 when the no-package sponsor qualifies in QA24-06, which completes no further block.
 
 **If it fails** — `baseline_n` is 6 rather than 0: the board was armed after the tree was built, so
 position #1 was frozen as *baseline* and can never pay. That is the ordering error described in the
-"Before QA24-08" block; restore the backup and start again (there is no un-arm).
+"Before QA24-08" block; restore the backup and start again (there is no supported un-arm in the app).
 
 ### QA24-24 — The General Harvest credit lands in the wallet
 
@@ -1111,25 +1134,30 @@ position #1 was frozen as *baseline* and can never pay. That is the ordering err
 - `total` = **2000.00** at this point.
 - One **General Harvest bonus** credit of ₱2,000; withdrawable up by ₱2,000.
 
-### QA24-25 — The position and progress view
+### QA24-25 — The progress view: the admin level table and the member's next block
 
 | | |
 |---|---|
-| **What it proves** | Each qualified member's slot shows its fill and what it is waiting for. |
+| **What it proves** | The ledger shows, per level, how far the queue has come and what it is waiting for; the member's own card shows the same position and progress. |
 | **Before** | QA24-24 passed. |
-| **Where** | Finance → Commissions → general_harvest → position table |
-| **Evidence** | `QA24-25-general-harvest-positions.png` |
+| **Where** | Finance → Commissions → **general_harvest** (Level distribution table); `/earnings?ledger=general_harvest` as `QA24_Sponsor` |
+| **Evidence** | `QA24-25-general-harvest-levels.png`, `QA24-25-member-next-block.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked |
 
 **Steps**
 
-1. Open the position table and read each of the six slots: position, owner, filled/total for level 1,
-   status, next completion.
+1. In the admin ledger, read the **Level distribution** table: members needed, block size, amount,
+   paid awards, paid total, before go-live, state and **Next at N**.
+2. **Window B:** sign in as `QA24_Sponsor` → Earnings → **General Harvest** tab.
 
 **You should see**
 
-- Position #1 paid; positions #2–#6 showing progress with a next-completion figure.
-- No page error and no blank row.
+- Level 1: **4** members needed, **3** block size, **₱2,000.00**, **1** paid award, **₱2,000.00**
+  paid, state **Pays**, one block waiting at **N = 7**.
+- Levels 2–10: their configured amounts and next completion (**level 2: N = 13**), with no paid row
+  and no blank state.
+- The member card reads **Position #1 · queue at 6**, and **Your next block** says
+  *Level 2 — block #5–#13: 2 of 9 filled*, needing the queue to reach **13**.
 
 ### QA24-26 — The admin General Harvest ledger
 
@@ -1148,7 +1176,9 @@ position #1 was frozen as *baseline* and can never pay. That is the ordering err
 
 **You should see**
 
-- One credited row: ₱2,000.
+- One credited row: ₱2,000.00, level 1.
+- Tiles: **Credited ₱2,000.00**, **Awards 1**, **Recipients 1**, **Before go-live ₱0.00**,
+  **Open liability ₱0.00** at the current queue length.
 - Export matches; `general_harvest.export` appears in the audit log.
 
 ---
@@ -1186,7 +1216,7 @@ afterwards: the queue and the board will have moved.
 - The member can open a **new** request (you will do that in QA24-12).
 
 > **Expected side effect.** Registering D gives `QA24_Member_C` its first direct, so C now qualifies:
-> the queue grows to 7 and the General Harvest board may pay position #2 (`QA24_Member_A`)
+> the queue grows to 7 and the General Harvest board pays position #2 (`QA24_Member_A`)
 > **₱2,000**. Record it with this check's evidence; it is correct, not a duplicate. The rejection
 > itself pays nothing.
 
@@ -1218,7 +1248,7 @@ afterwards: the queue and the board will have moved.
 - Compare with QA24-11: C's chain is one link shorter, which is why C's level 4 was `admin` and was
   skipped. Both behaviours are correct.
 
-> **Already settled.** C qualified when D *registered* (QA24-05), so any General Harvest payment to
+> **Already settled.** C qualified when D *registered* (QA24-05), so the General Harvest payment to
 > position #2 belongs to that check's evidence. Approving D now only adds the referral rows above.
 > The level-4 amount is **₱40**, not ₱50 — the seeded ladder is 500 / 100 / 50 / 40 / 30 …
 
@@ -1321,8 +1351,10 @@ an ineligible member.
 
 **You should see**
 
-- **Wallets OK** and **Commissions OK** (plus any binary/harvest sections it prints), with exit code
-  **0**.
+- Every section prints its own OK line — **Wallets**, **Commissions**, **Transfers**, **Payouts**,
+  **Repeat-purchase**, **Royalty**, **Team Harvest**, **General Harvest**, **Product binary** — and the
+  command ends with *All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty,
+  team-harvest, general-harvest and product-binary awards reconcile.* Exit code **0**.
 - No mismatch lines.
 
 **If it fails** — copy the whole output to the evidence file and **stop**: a reconciliation mismatch
@@ -1451,7 +1483,7 @@ to the member, not company revenue.
 |---|---|---|
 | Direct referral | 3 (A→Sponsor, B→A, C→B) | ₱1,500 |
 | Indirect referral (credited) | 3 (B→Sponsor 100, C→A 100, C→Sponsor 50) | ₱250 |
-| Skipped rows (no money) | 4, all to `admin`: ₱500 direct (Sponsor's activation), ₱100 L2 (A), ₱50 L3 (B), ₱50 L4 (C) | ₱700 not paid |
+| Skipped rows (no money) | 4, all to `admin`: ₱500 direct (Sponsor's activation), ₱100 L2 (A), ₱50 L3 (B), ₱40 L4 (C) | ₱690 not paid |
 | Binary package (pair) | 1 | ₱100 |
 | Team Harvest | 1 (Sponsor) | ₱1,000 |
 | General Harvest | 1 | ₱2,000 |
