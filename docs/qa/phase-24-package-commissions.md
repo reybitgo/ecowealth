@@ -551,7 +551,7 @@ Part 6 30 min · Part 7 15 min.
 | **Before** | You are signed in as `admin` on a development copy. |
 | **Where** | System → Settings → **Commissions** tab (`/admin/settings#settings-commissions`) |
 | **Evidence** | `QA24-07-settings-before.png`, `QA24-07-settings-after.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked |
 
 **Steps**
 
