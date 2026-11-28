@@ -117,6 +117,30 @@ change.
 
 **Suggested correction:** add a documented fixture step that inserts a known expired code (for example through a SQL statement with `status = 'expired'`, or an explicit CLI/seed step), or remove the expired case from the manual check and list it as a separate, environment-specific test. State which code is the “used” one in step 3, since QA24-02 issues three.
 
+**Resolution (walkthrough v3.4):** QA24-03 no longer hunts for a code that a clean copy does not
+have. A new step 4 issues one spare Package A code and marks it expired the documented way:
+
+```sql
+UPDATE reg_codes
+   SET status = 'expired',
+       expires_at = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+ WHERE code = '<the spare code>';
+```
+
+The check then validates and submits that code like the other two, and records
+`QA24-03-code-expired.png` (the Codes list filtered to **Expired**). Step 3 now names the used code —
+the third code from QA24-02, the one that registered `QA24_Member_B` — and §3.5 lists this `UPDATE`
+as the only data-changing statement outside QA24-29. The version row and correction list (item 12)
+record the change.
+
+The fixture mirrors the expired-code case the suite already runs: `MembershipTest` P9-T3 issues a
+fresh code, backdates `expires_at` with the same `DATE_SUB`, and asserts both the refusal and the
+`expired` flip. Writing `status` as well only makes the row visible under the Codes **Expired**
+filter before its first validation; `CodeService::validate()` refuses a row whose status is
+`expired` with *That registration code has expired.* The form's `min = tomorrow` guard is unchanged —
+the screen is meant to issue only future-dated codes, and the walkthrough now says so instead of
+leaving the tester to discover it.
+
 ---
 
 ## DOC-04 — QA24-18 never tells the tester to submit the three proofs

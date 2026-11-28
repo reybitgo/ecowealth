@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.3** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup and v3.3 corrects one quoted amount (the level-4 skip in QA24-11). Both remain manual checks (see the box below and `phase-24-run-report.md`) |
+| **Document version** | **v3.4** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), and v3.4 gives QA24-03 a documented fixture for its expired code. All three remain manual checks (see the box below and `phase-24-run-report.md`) |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -26,7 +26,8 @@ you never "fix" data.
 > `docs/qa/evidence/phase-24/run/`. Items 1–4 were already v2 fixes; **5–9 are new in v3** and were
 > each confirmed by the run — except item 8's replacement cleanup, which is the workaround for the
 > constraint that stopped the original delete and was not itself executed end to end. **10 is new in
-> v3.2** and finishes that cleanup. **11 is new in v3.3** and corrects one quoted amount:
+> v3.2** and finishes that cleanup. **11 is new in v3.3** and corrects one quoted amount. **12 is new
+> in v3.4** and makes QA24-03's expired case runnable:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -58,6 +59,11 @@ you never "fix" data.
 > 11. **QA24-11's level-4 skip is ₱40, not ₱50.** The four rows for `QA24_Member_C` credit
 >     ₱500 / ₱100 / ₱50 at levels 1–3 and **skip ₱40** at level 4 (`admin`, the company root) — the
 >     same figure the row shows and QA24-12 states.
+> 12. **QA24-03 now creates its own expired code.** A fresh install and `bin\db_reset.php` both leave
+>     **no** codes at all, and the issue form deliberately refuses an expiry in the past, so the
+>     check now issues one spare Package A code and marks it `expired` with a documented `UPDATE`
+>     before validating it. Step 3 also names the used code — the **third** code from QA24-02, the
+>     one that registered `QA24_Member_B`.
 
 ---
 
@@ -185,14 +191,15 @@ copy, paste and compare.
 
 The queries in this document all start by looking up an account id from its username, so you can
 paste them exactly as written. **Never run a query that changes data** (`UPDATE`, `DELETE`, `INSERT`)
-except the `DELETE` statements and the `bin\db_reset.php` step in QA24-29 (read both before you run
-them).
+except the one `UPDATE` that dates the spare code in QA24-03 and the `DELETE` statements and
+`bin\db_reset.php` step in QA24-29. Read each of those before you run it, and never invent one of
+your own.
 
 ### 3.6 What you need on screen
 
 - The app in two windows, as above.
 - A text note (Notepad is fine) for the **before** values you record in QA24-07 and the codes you
-  issue in QA24-02. Codes look like `ABCD-EFGH-JKLM`.
+  issue in QA24-02 and QA24-03. Codes look like `ABCD-EFGH-JKLM`.
 - A folder for screenshots.
 - A fresh terminal in `C:\laragon\www\ecowealth\system` for the commands near the end. Open
   **PowerShell**, then:
@@ -741,24 +748,49 @@ shown on the form and note the deviation. A standard member who cannot register 
 | | |
 |---|---|
 | **What it proves** | A code is money: a bad one must never create a member or activate a package. |
-| **Before** | You have one used code from QA24-02. |
-| **Where** | `/register` (code mode) |
-| **Evidence** | `QA24-03-code-refused.png` |
+| **Before** | QA24-02 passed: you have three used codes, and you are signed in as admin in Window A. |
+| **Where** | `/register` (code mode); Commerce → Codes; phpMyAdmin (`ecowealth_sneat` → SQL) |
+| **Evidence** | `QA24-03-code-refused.png`, `QA24-03-code-expired.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked |
 
 **Steps**
 
 1. `/register` → **Registration code** → type `ZZZZ-ZZZZ-ZZZZ` → **Validate**.
 2. Try to submit it anyway with a fresh username.
-3. Type the code you used in QA24-02 → **Validate**; try to submit it with another username.
-4. Find an expired code (Commerce → Codes, filter **Expired**) and try the same.
+3. Type the code that registered **`QA24_Member_B`** in QA24-02 — your **third** code — →
+   **Validate**; try to submit it with another username.
+4. Make an expired code. A clean copy has none, and the issue form refuses a past expiry, so this
+   check creates one — the only data change it makes:
+   1. **Window A:** Commerce → **Codes** → issue **one** Package A code (price at the package
+      default; the expiry can stay empty). Copy it into your notes. Do **not** use it to register.
+   2. phpMyAdmin (`ecowealth_sneat` → **SQL**) — replace the code with the one from step 4.1:
+
+      ```sql
+      UPDATE reg_codes
+         SET status = 'expired',
+             expires_at = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+       WHERE code = '<the code from step 4.1>';
+      ```
+
+      Expect *1 row affected*. Then Commerce → Codes → status **Expired** lists the code with
+      yesterday's date.
+5. `/register` → **Registration code** → type that expired code → **Validate**; try to submit it with
+   another username.
 
 **You should see**
 
-- **Validate** answers "not recognised", "already used" and "expired" respectively.
+- **Validate** answers "not recognised", "already used" and "expired" respectively — the last one is
+  *That registration code has expired.*
 - Each submit returns to `/register` with the error and **creates no member** (check Commerce →
-  Members) and no activation.
-- The used code still shows the member from QA24-02, unchanged.
+  Members) and no activation. The only row this check adds is the spare code from step 4, and it
+  stays **Expired** with no member in **Used by**.
+- The `QA24_Member_B` code (and the other two from QA24-02) still show the member who used each one,
+  unchanged. QA24-29 deletes the spare code with the rest of the run's codes.
+
+**If it fails** — a submit with an invalid, used or expired code creates a member or an activation:
+**Fail**. If the code from step 4.1 does not appear under **Expired**, reload Commerce → Codes before
+recording anything; a stale list is not a defect. Do not try to issue the spare code with a past
+expiry through the form — the date field refuses it by design.
 
 ### QA24-04 — A manual proof waits for approval, then activates
 
