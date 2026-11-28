@@ -11,7 +11,7 @@ You never change code and you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 25 — product commissions: repeat-purchase (unilevel) ladder, Product binary Self Bonus, pairs, delivery escrow and release |
-| **Document version** | **v1** — executed end to end against the isolated schema `ecowealth_sneat_qa25`; every amount below is what the app actually produced (see the box below and the evidence in `docs/qa/evidence/phase-25/run/`) |
+| **Document version** | **v1.1** — the amounts and states below were reproduced by the run against the isolated schema `ecowealth_sneat_qa25`; the labels, messages, screen wording and ledger/audit names were re-checked against the current build on 28 Nov 2026 (see the box below and the evidence in `docs/qa/evidence/phase-25/run/`) |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -31,7 +31,9 @@ You never change code and you never "fix" data.
 > your development copy, so it could be run start to finish without touching real data. The run
 > placed 5 orders and passed **30 of 30 assertions**; the raw log, CSVs and the driver script are in
 > `docs/qa/evidence/phase-25/run/`. Three differences between the v1 draft and the run are recorded
-> in §15.5 — they are corrections to *this document*, not defects in the app.
+> in §15.5 — they are corrections to *this document*, not defects in the app. **v1.1** only aligns
+> labels, messages, screen wording and ledger/audit names with the current build; no amount or
+> state changed.
 
 ---
 
@@ -170,7 +172,7 @@ except the single cleanup block in QA25-24, which removes only `QA25…` rows.
 - The app in two windows, as above.
 - A text note (Notepad is fine) for the **before** values you record in QA25-01.
 - A folder for screenshots.
-- A fresh terminal in `C:\laragon\www\ecowealth\system` for the two commands near the end. Open
+- A fresh terminal in `C:\laragon\www\ecowealth\system` for the commands near the end. Open
   **PowerShell**, then:
 
 ```powershell
@@ -191,6 +193,12 @@ account at the end.
 Before you begin, confirm that no `QA25…` account already exists (Commerce → Members, search
 `QA25`). If one does, it is from an earlier attempt: either finish that attempt or run QA25-24's
 cleanup first.
+
+> **The totals below are absolute.** They assume this is the only product-commission data in the
+> database, as in the run (a fresh schema). If your copy already has paid product orders, QA25-11's
+> cards, QA25-23's reconciler totals and QA25-24's tie-out include them; filter the rows and CSV to
+> the QA25 accounts, and scope the tie-out's award and ledger subqueries by QA25 orders/users — the
+> figures above are the QA25-only totals.
 
 ---
 
@@ -237,10 +245,10 @@ skip.
 | Configure a product's ladder, P.V. and binary points | admin | Catalogue → Products → open **Coffee** | `/admin/products/1/edit` |
 | Fund a buyer's wallet | admin | Finance → Wallets → search member → **Credit wallet** | `/admin/wallets` |
 | Suspend or restore an upline | admin | Commerce → Members → open member → **Suspend member** | `/admin/members` |
-| The commission ledgers | admin | Finance → Commissions → **Repeat-purchase bonus** / **Binary** tabs | `/admin/commissions?ledger=repeat` |
+| The commission ledgers | admin | Finance → Commissions → **Repeat-purchase bonus** / **Product binary** tabs | `/admin/commissions?ledger=repeat` |
 | Deliver an order | admin | Commerce → Orders → open the order | `/admin/orders` |
 | Verify a manual payment | admin | Commerce → Orders → open the order → **Verify payment** | `/admin/orders` |
-| See your own awards | the member | Membership → **Earnings** → **Repeat-purchase bonus** / **Binary bonus** | `/earnings?ledger=repeat` |
+| See your own awards | the member | Membership → **Earnings** → **Repeat-purchase bonus** / **Product binary** | `/earnings?ledger=repeat` |
 | See your own wallet | the member | Money → **E-wallet** | `/wallet` |
 | Shop and check out | the member | Shopping → **Shop** → product → **Cart** | `/shop`, `/cart`, `/checkout` |
 | Register someone | anyone | Membership → Register | `/register` |
@@ -390,19 +398,19 @@ Part 6 15 min.
 
 **Steps**
 
-1. Open Settings → **Commissions**. The page is a list of cards: *Direct referral*,
-   *Indirect referral*, **Repeat-purchase bonus**, *Royalty*, *Team Harvest*, *General Harvest*,
-   **Product binary**, *Package binary*.
+1. Open Settings → **Commissions**. One form holds these sub-blocks: *Direct referral bonus*,
+   *Indirect referral (unilevel)*, *Repeat-purchase bonus*, *Royalty bonus*, **Team Harvest bonus**,
+   **General Harvest bonus**, **Product binary**, **Package binary**.
 2. In your notes, write down the **current** value of every control in the table below. You restore
    them in QA25-24, so a wrong "before" value means you cannot reset the system.
 3. Change exactly these controls (leave everything else alone):
 
    | Control on the page | Card | Set to |
    |---|---|---|
-   | Repeat-purchase bonus enabled (switch) | Repeat-purchase | **on** |
-   | Upline depth | Repeat-purchase | **10** |
-   | Monthly personal-purchase minimum | Repeat-purchase | **500.00** |
-   | Release delay after delivery | Repeat-purchase | **0** |
+   | Repeat-purchase bonus enabled (switch) | Repeat-purchase bonus | **on** |
+   | Upline depth | Repeat-purchase bonus | **10** |
+   | Monthly personal-purchase minimum | Repeat-purchase bonus | **500.00** |
+   | Release delay after delivery | Repeat-purchase bonus | **0** |
    | Product binary enabled (switch) | Product binary | **on** |
    | Self Bonus % | Product binary | **5** |
    | Points per pair | Product binary | **1000** |
@@ -441,6 +449,11 @@ Part 6 15 min.
 > default is **7 days**; this run sets **0** so you can see the release in one sitting. Each award
 > snapshots its hold when it is written, so changing the setting later never moves an existing award.
 
+> **Why the Active rule does not block this run.** It reads the previous month's personal purchases
+> (₱500 minimum) for accounts that existed at a month close; a missing flag means Active. All six
+> QA25 accounts are created fresh here, so they qualify. Reusing accounts from an earlier attempt
+> can change that — start from a clean `QA25` prefix.
+
 **If it fails** — a value refuses to save with a validation message: read it, correct the value, try
 again; if it still refuses, that is a **Fail**. If a "before" note is missing, stop and take a fresh
 backup rather than guessing later.
@@ -459,20 +472,21 @@ backup rather than guessing later.
 
 1. Catalogue → **Products** → open **Coffee**.
 2. In **Pricing & stock**, set **Price** `300.00` and **Point value (P.V.)** `250.00`.
-3. Find the **Repeat-purchase bonus** card:
-   - switch **Repeat-purchase bonus** on;
+3. Find the **Unilevel repeat-purchase bonus** card:
+   - switch **Pay this product's ladder** on;
    - **Bonus base** = **Auto — P.V. when set, else the price**;
    - enter the ten levels exactly: `5`, `5`, `5`, `3`, `3`, `2`, `2`, `2`, `1`, `1`.
-4. Find the **Product binary points** card and switch **Product binary points** on. The readout
-   should say **250 P.V. × 1 unit = 250 points** and show **₱12.50** per unit at this P.V.
-5. Click **Save** (one save covers the whole product). Reopen Coffee.
+4. Find the **Product binary points** card and switch **Pay product binary points** on. The readout
+   should say **250.00 P.V. × 1 unit = 250 pts per unit**, and the **Self bonus** line shows
+   **₱12.50 per unit at this P.V.**
+5. Click **Save changes** (one save covers the whole product). Reopen Coffee.
 6. Look at Coffee's row on `/admin/products`.
 
 **You should see**
 
 - Both cards still on after the reopen, P.V. `250.00`, base **Auto**, all ten rates as entered,
-  ladder total **29%**.
-- The product row shows two badges: **Repeat bonus 29%** and **Binary 250 pts**.
+  and the ladder's Total row **29.000%**.
+- The product row shows two badges: **Repeat bonus 29%** and **Product binary 250 pts**.
 - In phpMyAdmin (`ecowealth_sneat` → **SQL**):
 
   ```sql
@@ -508,7 +522,8 @@ appear, the switch did not save: **Fail**, and stop. Every amount below depends 
 **Steps**
 
 Register six accounts, **each in a fresh Incognito window**, exactly as §7.3 says. For each:
-open `/register` → choose **Standard (free)** → type the sponsor → in **Binary placement**, type the
+open `/register` → choose **Standard** (note **Free · shop only**) → type the sponsor → in **Binary
+placement**, type the
 upline and pick the side → username, email, password `Demo@1234` → tick the terms → **Create
 account**.
 
@@ -591,8 +606,8 @@ subtree"*: you are still signed in as the previous member; use a fresh Incognito
 - The cart has one line: Coffee × 4, line total **₱1,200.00**, and the order total is **₱1,200.00**.
 - A repeat-purchase line that begins **"Up to ₱290.00 is earned by the members above you when this
   order…"**.
-- A **Product binary** card saying this order carries **1,000 points**, your **Self Bonus is
-  ₱50.00**, and offering **Left** / **Right** for this order. The choice is required.
+- A **Place this purchase** card (the Product binary card) offering **Left** / **Right**, each
+  side reading **1000 pts · you earn ₱50.00 on this order · 0 pairs now**. The choice is required.
 
 > **Why ₱290 but only ₱180 later?** ₱290 is 29% of ₱1,000 — the **whole ladder**, including every
 > configured level. The preview is an "up to" figure and does not know who is eligible. In this
@@ -813,16 +828,18 @@ of 0: the Self Bonus percentage is 0.
 
 **You should see**
 
-- The four admin messages: *"Packing started…"*, *"The order is packed and ready to ship."*,
-  *"Order shipped via J&T Express — tracking QA251. The stock has been deducted."*, *"Order marked
-  delivered. The member can now confirm receipt."*
-- The dry run exits **0** and lists:
-  - repeat-purchase: **4 award(s) · ₱180.00**, one order, the four names at levels 1–4;
-  - product binary: **1 award(s) · ₱50.00**, the buyer's `self`.
+- The four admin messages: *"Packing started. The order is now Packing."*, *"The order is packed and
+  ready to ship."*, *"Order shipped via J&T Express — tracking QA251. The stock has been deducted."*,
+  *"Order marked delivered. The member can now confirm receipt."*
+- The dry run exits **0**. The repeat-purchase block reports `pending: 4 award(s) · ₱180.00` and
+  `candidates: 1 → orders 1`, then lists the four awards as
+  `order EW… (#1) → award #… · QA25_C · level 1 · ₱50.00` (and B, A, Boss). The product-binary block
+  reports `pending: 1 award(s) · ₱50.00` and `candidates: 1 → orders 1`, then the buyer's `self`.
 - The real run exits **0** with `released: 1 order(s) · 4 award(s) · ₱180.00` for repeat-purchase
   and `released: 1 order(s) · 1 award(s) · ₱50.00` for product binary. The pair does not exist yet —
   the right leg arrives in QA25-17.
-- Running the same command again changes nothing (`released: 0`).
+- Running the same command again changes nothing: each stream prints
+  `released: 0 order(s) · 0 award(s) · ₱0.00`.
 
 **If it fails** — `pending: 0` in the dry run: the order is not delivered, or the return window has
 not elapsed. With the default 7-day hold the release waits a week; that is why QA25-01 set **0**.
@@ -887,9 +904,9 @@ balance lower than the award: the wallet was already spent; record it, do not "t
 **Steps**
 
 1. Open the tab. Read the stat cards, then the rows.
-2. Filter by **Recipient = `QA25_C`**, then clear it and filter **Status = Skipped**.
-3. Press **Export CSV** and open the file.
-4. Open the eye button on one row to read its detail.
+2. Press **Export CSV** and open the file.
+3. Type `QA25_C` in the search box (labelled **Recipient, buyer, product or order**) and press
+   **Filter**; then clear it and set **Status = Skipped**.
 
 **You should see**
 
@@ -897,10 +914,10 @@ balance lower than the award: the wallet was already spent; record it, do not "t
   release already ran).
 - Four credited rows (C, B, A, Boss) and one muted **skipped** row for `admin` marked **not paid** —
   the skipped filter shows that one row.
-- Each row links to the order and the wallet movement; the detail view traces award → order →
-  ledger and offers **no edit or delete**.
+- Each row links to its order and, when released, to the wallet movement; the page offers **no edit
+  or delete**.
 - The CSV matches the screen exactly (same four + one rows, same amounts).
-- System → **Audit log** has a `commissions.export` row.
+- System → **Audit log** has an `unilevel.export` row.
 - As a member, `/admin/commissions` returns **403**; signed out, it redirects to `/login`.
 
 **If it fails** — a skipped row counted in "Total credited": **Fail**. A row without its wallet
@@ -927,7 +944,7 @@ link: **Fail** — that traceability is the point of the tab.
 - As `QA25_C`: **Total credited ₱50.00**, **Awards 1**, source `QA25_Buyer`, level **1**, amount
   **₱50.00**, status **credited**; the CSV has that one row.
 - As `QA25_Buyer`: **Total credited ₱0.00** and **no award row** for their own order. (Their own
-  binary Self Bonus appears on the Binary tab, not here.)
+  binary Self Bonus appears on the **Product binary** tab, not here.)
 - No other member's name or amount appears anywhere on the page.
 
 **If it fails** — the buyer sees their own purchase as an award: **Fail** (a level-0 rebate exists).
@@ -977,7 +994,7 @@ Only order #1 exists at this point, so the six QA25 nodes read:
 All are `state = placed`. `QA25_Boss` still has its right leg empty (that is QA25-17).
 
 - The buyer's ledger has one `binary` credit of **₱50.00**, and `/wallet` shows it as a
-  **Binary bonus** credit, with withdrawable **₱50.00**.
+  **Product binary** credit, with withdrawable **₱50.00**.
 
 **If it fails** — points on the wrong side: the checkout side or the binary placement is wrong;
 record both. A node balance that disagrees with its volume rows: **Fail** — that is cached-state
@@ -995,15 +1012,16 @@ drift.
 
 **Steps**
 
-1. As admin, open Finance → Commissions → **Binary** tab. Read the counters and the row; open its
-   detail.
-2. As `QA25_Buyer`, open Membership → Earnings → **Binary bonus**. Read the Self Bonus card, the
+1. As admin, open Finance → Commissions → **Product binary** tab. Read the counters and the row;
+   follow its order and wallet links.
+2. As `QA25_Buyer`, open Membership → Earnings → **Product binary**. Read the Self Bonus card, the
    node card and the statement.
 
 **You should see**
 
-- Admin: a **Self bonus** row for `QA25_Buyer`, **₱50.00**, status **credited**, with links to the
-  order and the wallet movement; the header separates **Self** from **Pair** money.
+- Admin: a **Self** row for `QA25_Buyer` (the buyer's Self Bonus), **₱50.00**, status **credited**,
+  with links to the order and the wallet movement; the cards separate **Self bonus** from **Pair
+  bonus** money.
 - The member page: the node (side right, 1,000 left points), the **Self Bonus** card explaining 5%
   of the order's points, and one credited ₱50.00 row.
 - No edit, delete or "reverse" control on either page.
@@ -1244,8 +1262,8 @@ the decision was silently dropped. `QA25_B` is paid: **Fail**, stop.
 
 **Steps**
 
-1. As admin, open Coffee and switch **Repeat-purchase bonus** off and **Product binary points** off.
-   Save.
+1. As admin, open Coffee and switch **Pay this product's ladder** off and **Pay product binary
+   points** off. Save.
 2. As `QA25_Buyer2`, buy **1 × Coffee** (₱300) with the e-wallet, side **Right**.
 3. Read the order's stamps and award counts.
 4. Turn both product switches back on and save.
@@ -1255,8 +1273,8 @@ the decision was silently dropped. `QA25_B` is paid: **Fail**, stop.
 - **Paid**, `unilevel_processed_at` set, `unilevel_total` **0.00**, `binary_points` 0, both binary
   totals 0.00.
 - **0** award rows and **0** volume rows for this order.
-- Coffee's row on the product list no longer carries the **Repeat bonus** / **Binary** badges while
-  the switches are off.
+- Coffee's row on the product list no longer carries the **Repeat bonus** / **Product binary**
+  badges while the switches are off.
 
 **If it fails** — the checkout errors instead of accepting a zero-value line: **Fail**. Awards
 appear anyway: **Fail**.
@@ -1322,19 +1340,20 @@ did not save. A cancelled award with a ledger row: **Fail** — money moved.
 **You should see**
 
 - **Exit: 0** and a **Repeat-purchase** section:
-  - **credited awards: 8 (360.00)**
-  - **pending awards: 0 (0.00)**
-  - **cancelled awards: 3 (65.00)**
-  - **skipped awards: 4**
-  - **unilevel ledger: 360.00**
-  - *"OK — every award has its wallet movement…"*
+  - `credited awards: 8 (360.00)`
+  - `pending awards: 0 (0.00)`
+  - `cancelled awards: 3 (65.00)`
+  - `skipped awards: 4`
+  - `unilevel ledger: 360.00`
+  - `OK — every award has its wallet movement, every reversal its debit, and the order totals agree.`
 - A **Product binary** section:
-  - **credited awards: 3 (200.00)**
-  - **cancelled awards: 1 (25.00)**
-  - **binary ledger: 200.00**
-  - *"OK — every award has its wallet movement…"*
-- Every other section (wallets, commissions, transfers, payouts, royalty, Team Harvest, General
-  Harvest) clean, and the final line *"All good — …"*.
+  - `credited awards: 3 (200.00)`
+  - `cancelled awards: 1 (25.00)`
+  - `binary ledger: 200.00`
+  - the same OK line.
+- Every other section (Wallets, Commissions, Transfers, Payouts, Royalty, Team Harvest, General
+  Harvest) clean, and the final line `All good — wallets, commissions, transfers, payouts,
+  repeat-purchase, royalty, team-harvest, general-harvest and product-binary awards reconcile.`
 - The Team Harvest and General Harvest warnings about an unseeded queue / unarmed board are
   **normal** for this run: you did not use those streams.
 
@@ -1476,6 +1495,10 @@ company). None of it reached a wallet.
   engine's own QA (Phase 22D) covers it.
 - More than one pair in a day, the daily pair cap, and pair carry-over.
 - A credited **reversal** (cancelling after release) and a shortfall. Phase 17C/22D cover those.
+- The monthly Active rule. It only has a flag for accounts that existed at a month close, and a
+  missing flag means Active, so the six new QA25 accounts qualify. An account that existed at a
+  close with under ₱500 of personal purchases would be skipped (*recipient is not Active for …*);
+  this run did not exercise that.
 - Royalty (a monthly close) and package commissions (Phase 24).
 
 ### 15.5 The differences found while writing this document
@@ -1583,7 +1606,7 @@ SELECT key_name, value FROM settings
                     'binary_enabled','binary_self_pct','binary_pair_points',
                     'binary_pair_pct','binary_daily_pair_cap','binary_hold_days',
                     'binary_requires_active','binary_release_enabled',
-                    'shop_cancel_enabled')
+                    'binary_reversal_enabled','shop_cancel_enabled')
  ORDER BY key_name;
 ```
 
