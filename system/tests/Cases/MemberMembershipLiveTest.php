@@ -313,4 +313,33 @@ return [
         assert_contains('admin-live.js', $html);
         assert_contains('Referral link', $html);
     },
+
+    'an unplaced member activating a binary package is asked for placement' => function (): void {
+        $package = Package::findBySlug('package-a');
+        assert_not_null($package);
+
+        $id     = (int) $package['id'];
+        $before = (int) ($package['binary_enabled'] ?? 0);
+        $member = test_user('mmlv_unplaced_' . bin2hex(random_bytes(3)));
+
+        db()->prepare('UPDATE packages SET binary_enabled = 1 WHERE id = ?')->execute([$id]);
+
+        try {
+            $context = (new MembershipController())->membershipContext(Member::find((int) $member['id']));
+        } finally {
+            db()->prepare('UPDATE packages SET binary_enabled = ? WHERE id = ?')->execute([$before, $id]);
+        }
+
+        /* The package list must be read before the gate: before the fix the
+         * loop ran over an undefined $packages and the gate stayed false. */
+        assert_true($context['placement_needed'] === true, 'the unplaced member must choose a binary upline');
+
+        $card = View::capture('member/membership/_placement', [
+            'placement_needed' => $context['placement_needed'],
+        ]);
+
+        assert_contains('Binary placement', $card);
+        assert_contains('Binary upline', $card);
+        assert_contains('name="binary_position"', $card);
+    },
 ];

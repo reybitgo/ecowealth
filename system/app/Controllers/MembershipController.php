@@ -79,9 +79,11 @@ final class MembershipController
         $userId     = (int) $member['id'];
         $status     = (string) $member['member_status'];
         $hasPackage = $member['package_id'] !== null;
+        $packages   = PackageService::publicCards();
 
         /* Phase 23C: an unplaced member who can activate a binary-enabled
-         * package must place themselves in the tree first. */
+         * package must place themselves in the tree first. The package list
+         * must be read before this loop, or the gate silently stays closed. */
         $placementNeeded = false;
         if (BinaryNode::forUser($userId) === null) {
             foreach ($packages as $package) {
@@ -92,8 +94,7 @@ final class MembershipController
             }
         }
 
-        $packages = PackageService::publicCards();
-        $minimum  = null;
+        $minimum = null;
 
         foreach ($packages as $package) {
             $price   = (float) $package['price'];
