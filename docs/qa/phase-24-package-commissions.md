@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.11** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, and v3.11 gives QA24-18's no-volume check a query keyed to its three activations. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.12** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, and v3.11 gives QA24-18's no-volume check a query keyed to its three activations and v3.12 makes §3.4's backup command run on this Windows setup. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
@@ -34,7 +34,8 @@ you never "fix" data.
 > **17 is new in v3.9** and turns QA24-19's empty-queue recovery into a stop-and-restart;
 > **18 is new in v3.10** and makes QA24-29 delete only the codes the run issued;
 > **19 is new in v3.11** and gives QA24-18's no-volume check a query keyed to its three
-> activations:
+> activations; **20 is new in v3.12** and makes §3.4's backup command work on this Windows
+> setup:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -121,6 +122,15 @@ you never "fix" data.
 >     say whether the three zero-point approvals wrote anything. Step 6 now runs one query keyed to
 >     the three activation ids it approved, and expects `award_rows = 0` and `volume_rows = 0` on
 >     each of its rows.
+>
+> 20. **§3.4's backup command no longer assumes anything about the terminal.** The old line called a
+>     bare `mysqldump` — not on this machine's `PATH` — wrote into a folder nobody had created, and
+>     used PowerShell's `>`, a text redirect that can leave the dump in UTF-16. The command now calls
+>     Laragon's `mysqldump.exe` by full path, creates
+>     `C:\laragon\www\ecowealth-backups\phase-24\` first, writes with `--result-file` and
+>     `--default-character-set=utf8mb4` — the same flags the project's own backup uses in
+>     `docs\install-reset.md` §7.4 — and ends by checking the file starts with `-- MySQL dump` and is
+>     not 0 bytes.
 
 ---
 
@@ -252,11 +262,25 @@ The walkthrough creates and deletes data. A backup means a mistake costs minutes
 3. Open the **Export** tab → **Export** (SQL format, default settings).
 4. Save the file somewhere outside the project, e.g. `C:\laragon\www\ecowealth-backups\phase-24\`.
 
-If you are comfortable with a terminal, this does the same thing:
+If you are comfortable with a terminal, this does the same thing. The command calls Laragon's own
+`mysqldump.exe` — the bare name is not on `PATH` on this machine — creates the folder first, and
+writes with `--result-file` instead of PowerShell's `>`, which is a text redirect that can leave the
+dump in UTF-16:
 
 ```powershell
-cd C:\laragon\www\ecowealth
-mysqldump -u root -p --single-transaction --routines --databases ecowealth_sneat > C:\laragon\www\ecowealth-backups\phase-24\pre-phase-24.sql
+$dump = 'C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysqldump.exe'
+New-Item -ItemType Directory -Force C:\laragon\www\ecowealth-backups\phase-24 | Out-Null
+
+& $dump -u root -p --single-transaction --routines --triggers --default-character-set=utf8mb4 `
+    "--result-file=C:\laragon\www\ecowealth-backups\phase-24\pre-phase-24.sql" ecowealth_sneat
+```
+
+Press **Enter** at the password prompt if the local `root` account has no password. Before you go
+on, confirm the file is a real dump — not 0 bytes, and that its first line starts with `-- MySQL dump`:
+
+```powershell
+Get-Content C:\laragon\www\ecowealth-backups\phase-24\pre-phase-24.sql -TotalCount 1
+(Get-Item C:\laragon\www\ecowealth-backups\phase-24\pre-phase-24.sql).Length
 ```
 
 ### 3.5 Know how to read the database

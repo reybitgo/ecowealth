@@ -358,6 +358,23 @@ mysqldump -u root -p --single-transaction --routines --databases ecowealth_sneat
 
 **Suggested correction:** give the full `mysqldump.exe` path, create the folder first (`New-Item -ItemType Directory -Force`), and either run the command through `cmd /c` with `-r`/`--result-file`, or use `Out-File -Encoding utf8`. Verify the file starts with `-- MySQL dump` and is not 0 bytes before proceeding.
 
+**Resolution (walkthrough v3.12):** §3.4's terminal command now names Laragon's dump binary in
+full — `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysqldump.exe`, the same install §3.6 names
+for PHP — instead of a bare `mysqldump`, which is not on this machine's `PATH`. It creates
+`C:\laragon\www\ecowealth-backups\phase-24\` first with `New-Item -ItemType Directory -Force`, so
+the dump cannot fail on a folder nobody made. It writes through `"--result-file=…"` with
+`--default-character-set=utf8mb4` rather than PowerShell's `>`, whose text redirection can leave the
+file in UTF-16; the flags follow the project's own backup command in `docs\install-reset.md` §7.4.
+The step then checks the first line (`-- MySQL dump`) and the file's length, so a 0-byte or
+mis-encoded dump stops the tester before the destructive run.
+
+The command shape was executed on this machine — same binary, same flags and `--result-file`, with
+`-u root` and the empty local `root` password instead of the documented `-p` prompt: exit 0, first
+line `-- MySQL dump 10.13  Distrib 8.4.3, for Win64 (x86_64)`, 1,119,396 bytes. The scratch file was
+deleted afterwards and the existing
+`C:\laragon\www\ecowealth-backups\phase-24\pre-phase-24.sql` was not touched. The walkthrough's
+version row and correction list (item 20) record the change.
+
 ---
 
 ## DOC-12 — §5 URLs omit the application's subfolder
