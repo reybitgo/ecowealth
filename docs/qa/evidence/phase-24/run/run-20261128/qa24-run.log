@@ -1,0 +1,230 @@
+[18:08:51] === Phase 24 walkthrough — automated execution ===
+[18:08:51] database: ecowealth_sneat | app: http://127.0.0.1:8899
+[18:08:53] admin sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, admin! You are signed in.
+[18:08:53] --- Part 1 — settings and Package A points (QA24-07, QA24-08)
+[18:08:53]   evidence written: qa24-07-settings-before.csv (9 rows)
+[18:08:53]   settings before: {"commission_direct_enabled":"1","commission_indirect_enabled":"1","commission_indirect_max_levels":"10","general_harvest_enabled":"0","general_harvest_max_levels":"10","package_binary_enabled":"0","team_harvest_enabled":"0","team_harvest_max_levels":"10","team_harvest_qualify_directs":"3"}
+[18:08:53]   evidence written: qa24-08-package-before.csv (1 rows)
+[18:08:53] PASS QA24-07 — QA settings saved | expected: depth 4, gate 1, general depth 1 | actual: depth 4, gate 1, general 1
+[18:08:53] --- seeding the Team Harvest queue (before any registration)
+[18:08:55]   $ php bin/harvest_queue_seed.php → exit 0
+[18:08:55]     | EcoWealth Team Harvest queue seed
+[18:08:55]     |   database:  ecowealth_sneat (127.0.0.1)
+[18:08:55]     |   gate:      1 direct member account(s)
+[18:08:55]     |   order:     qualified_at — the gate-th direct's created_at
+[18:08:55]     |   members:   0 member(s) hold the gate
+[18:08:55]     |   queued:    0 position(s) already assigned · 0 candidate(s) skipped
+[18:08:55]     |   inserted:  0 position(s)
+[18:08:55]     |   baseline:  2026-11-28 18:08:54 (team_harvest_ledger_since)
+[18:08:55]     |   excludes:  0 level(s) already complete at the baseline · ₱0.00 over 0 member(s) — recorded as baseline rows by 20D, never credited (D-07)
+[18:08:55]     | 
+[18:08:55]     | The registration hook is now live (team_harvest_ledger_since is set).
+[18:08:55]     | The stream is still switched off: turn on Team Harvest in /admin/settings → Commissions.
+[18:08:55] PASS QA24-19-seed — queue seeded before registrations | expected: exit 0 and a ledger_since baseline | actual: exit 0, ledger_since="2026-11-28 18:08:54"
+[18:08:55] --- arming the General Harvest board at N = 0 (before any registration)
+[18:08:56]   $ php bin/general_harvest_arm.php → exit 0
+[18:08:56]     | EcoWealth General Harvest arm
+[18:08:56]     |   database:   ecowealth_sneat (127.0.0.1)
+[18:08:56]     |   queue:      N0 = 0 position(s) · gapless (COUNT(*) = MAX(id))
+[18:08:56]     |   baseline:   0 row(s) across 0 level(s)
+[18:08:56]     |   excluded:   ₱0.00 — what the network had already earned; recorded and never paid
+[18:08:56]     |   board:      armed 2026-11-28 18:08:55 · baseline_n = 0 · settled_n = 0
+[18:08:56]     |   audit:      #6991 general_harvest.arm
+[18:08:56]     | 
+[18:08:56]     | All ten levels (the amounts freeze at this instant, D-23):
+[18:08:56]     |   level 1   ₱2,000.00  no complete block at this N0
+[18:08:56]     |   level 2   ₱4,000.00  no complete block at this N0
+[18:08:56]     |   level 3   ₱8,000.00  no complete block at this N0
+[18:08:56]     |   level 4   ₱12,000.00  no complete block at this N0
+[18:08:56]     |   level 5   ₱25,000.00  no complete block at this N0
+[18:08:56]     |   level 6   ₱100,000.00  no complete block at this N0
+[18:08:56]     |   level 7   ₱250,000.00  no complete block at this N0
+[18:08:56]     |   level 8   ₱480,000.00  no complete block at this N0
+[18:08:56]     |   level 9   ₱2,500,000.00  no complete block at this N0
+[18:08:56]     |   level 10  ₱5,000,000.00  no complete block at this N0
+[18:08:56]     | 
+[18:08:56]     | Nothing was paid: every row is `baseline` with a NULL wallet reference.
+[18:08:56]     | The board is armed. Configure the ladder (it is now frozen) and turn the
+[18:08:56]     | stream on — the settlement itself is Phase 21D.
+[18:08:56] PASS QA24-23-arm — board armed at N = 0 before the tree is built | expected: exit 0, baseline_n 0, armed_at set | actual: exit 0, board {"baseline_n":0,"armed_at":"2026-11-28 18:08:55"}
+[18:08:56] PASS QA24-08 — Package A points enabled before the first activation | expected: enabled=1 points=1000 master=1 | actual: enabled=1 points=1000 master=1
+[18:08:56] --- Part 2 — anchor account and the pair (QA24-02, QA24-15..17)
+[18:08:56] issued registration codes: 626J-HFW8-VYLY, QAXH-TYNZ-M2PV, XP9R-DACN-FG95, F2BY-5UH3-RFU3, KEXK-DVXW-CS43, ZLBN-XGNN-EAQN, RHTE-HVQU-R37E
+[18:09:02]   register QA24_Sponsor         mode=code     status=200 user=#1355 msg=Welcome aboard! Your membership is active with Package A.
+[18:09:03]   register QA24_Member_A        mode=code     status=200 user=#1356 msg=Welcome aboard! Your membership is active with Package A.
+[18:09:04]   register QA24_Member_B        mode=code     status=200 user=#1357 msg=Welcome aboard! Your membership is active with Package A.
+[18:09:04]   nodes: Sponsor={"id":1355,"member_status":"active","package_id":1,"side":"left","upline_id":1} A={"id":1356,"member_status":"active","side":"left","upline_id":1355} B={"id":1357,"member_status":"active","side":"right","upline_id":1355}
+[18:09:04] PASS QA24-02 — anchor account and pair created | expected: three active members | actual: three members rows: yes/yes/yes
+[18:09:04]   sponsor pair award: {"id":1,"kind":"pair","source":"activation","order_id":null,"activation_id":3,"buyer_id":1357,"user_id":1355,"side":"right","points":2000,"pair_count":1,"pair_points":1000,"rate_pct":"10.000","amount":"100.00","status":"credited","hold_days":0,"ledger_id":4,"credited_at":"2026-11-28 18:09:04","reversal_ledger_id":null,"reversed_amount":"0.00","paid_at":"2026-11-28 18:09:03","voided_at":null,"void_reason":null,"created_at":"2026-11-28 18:09:03"}
+[18:09:04] PASS QA24-16 — exactly one pair award of ₱100 to the sponsor | expected: one pair, 100.00 | actual: amount 100.00
+[18:09:04] PASS QA24-15 — points stamped on the activation | expected: binary_points 1000 | actual: points 1000, total 0.00
+[18:09:04] --- Part 3 — fill the tree (QA24-01, QA24-03, QA24-04)
+[18:09:05]   register QA24_Team_1          mode=standard status=200 user=#1358 msg=Welcome! Your standard account is ready — you can start shopping.
+[18:09:06]   register QA24_Team_1a         mode=standard status=200 user=#1359 msg=Welcome! Your standard account is ready — you can start shopping.
+[18:09:07]   register QA24_Team_2          mode=standard status=200 user=#1360 msg=Welcome! Your standard account is ready — you can start shopping.
+[18:09:08]   register QA24_Team_2a         mode=standard status=200 user=#1361 msg=Welcome! Your standard account is ready — you can start shopping.
+[18:09:09]   register QA24_Team_3          mode=standard status=200 user=#1362 msg=Welcome! Your standard account is ready — you can start shopping.
+[18:09:10]   register QA24_Team_3a         mode=standard status=200 user=#1363 msg=Welcome! Your standard account is ready — you can start shopping.
+[18:09:10]   evidence written: qa24-19-queue.csv (5 rows)
+[18:09:10]   queue: ["QA24_Sponsor#1 n=4","QA24_Member_A#2 n=0","QA24_Team_1#3 n=0","QA24_Team_2#4 n=0","QA24_Team_3#5 n=0"]
+[18:09:10]   evidence written: qa24-20-team-awards.csv (1 rows)
+[18:09:10]   team awards: [{"id":1,"username":"QA24_Sponsor","level":1,"threshold_n":3,"n_at_award":3,"amount":"1000.00","status":"credited"}]
+[18:09:10] PASS QA24-20 — team harvest pays the Sponsor ₱1,000 once | expected: 1 credited row (Sponsor), total 1000.00 | actual: 1 rows, total 1000.00, names QA24_Sponsor
+[18:09:10]   register QA24_BadCode         mode=code     status=200 user=MISSING msg=Please fix the highlighted field and try again.
+[18:09:10] PASS QA24-03 — invalid registration code refused | expected: no account and a message | actual: no account; msg: Please fix the highlighted field and try again.
+[18:09:10] --- QA24-04 — member C activates with a proof
+[18:09:11]   register QA24_Member_C        mode=pending  status=200 user=#1364 msg=Welcome! Your account is pending. Activate it from Membership when you are ready.
+[18:09:12] QA24_Member_C sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA24_Member_C! You are signed in.
+[18:09:15]   proof QA24-C-001   status=200 msg=Your payment proof is with the review team. You will become active as soon as it is approved.
+[18:09:15]   C activation: {"id":4,"status":"pending_review"}
+[18:09:17]   approve activation #4: status=200 msg=Activation #4 approved — @QA24_Member_C is now active with Package A (₱4,498.00).
+[18:09:17]   C approve message: Activation #4 approved — @QA24_Member_C is now active with Package A (₱4,498.00).
+[18:09:17] PASS QA24-04 — member C active with Package A after approval | expected: active + approved | actual: {"member_status":"active","package_id":1,"status":"approved","commission_processed_at":"2026-11-28 18:09:17"}
+[18:09:17] --- Part 4 — referral ladder (QA24-09 .. QA24-14)
+[18:09:17]   evidence written: qa24-09-commissions.csv (10 rows)
+[18:09:17]   commission admin            QA24_Sponsor L1 500.00 skipped ledger=-
+[18:09:17]   commission QA24_Sponsor     QA24_Member_A L1 500.00 credited ledger=1
+[18:09:17]   commission admin            QA24_Member_A L2 100.00 skipped ledger=-
+[18:09:17]   commission QA24_Member_A    QA24_Member_B L1 500.00 credited ledger=2
+[18:09:17]   commission QA24_Sponsor     QA24_Member_B L2 100.00 credited ledger=3
+[18:09:17]   commission admin            QA24_Member_B L3 50.00 skipped ledger=-
+[18:09:17]   commission QA24_Member_B    QA24_Member_C L1 500.00 credited ledger=7
+[18:09:17]   commission QA24_Member_A    QA24_Member_C L2 100.00 credited ledger=8
+[18:09:17]   commission QA24_Sponsor     QA24_Member_C L3 50.00 credited ledger=9
+[18:09:17]   commission admin            QA24_Member_C L4 40.00 skipped ledger=-
+[18:09:17] PASS QA24-09 — activation 1 pays the sponsor 500 direct | expected: one 500 row | actual: 6 credited rows total
+[18:09:17] PASS QA24-10 — activation 2 pays A 500 direct and Sponsor 100 indirect | expected: A 500 L1 + Sponsor 100 L2 | actual: see commission rows above
+[18:09:17] PASS QA24-11 — activation 3 pays three levels with the company root skipped | expected: 3 credited rows from C | actual: 4 rows from C
+[18:09:18] QA24_Sponsor sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA24_Sponsor! You are signed in.
+[18:09:20]   /earnings status 200 | has 650.00: yes
+[18:09:20] PASS QA24-13 — member earnings page renders the ladder and total | expected: HTTP 200 with 650.00 | actual: HTTP 200, 650.00 present
+[18:09:22]   /admin/commissions status 200 | has 500.00: yes
+[18:09:22] PASS QA24-14 — admin commission ledger renders | expected: HTTP 200 with award rows | actual: HTTP 200
+[18:09:22]   /admin/commissions/export status 200, 1565 bytes
+[18:09:22] PASS QA24-14-export — admin ledger CSV export | expected: HTTP 200 CSV | actual: HTTP 200
+[18:09:22] --- Part 5 — harvest (QA24-19 .. QA24-26)
+[18:09:22] PASS QA24-19 — queue holds six positions with no gaps | expected: 6 positions | actual: 6 positions
+[18:09:22]   board state: {"baseline_n":0,"settled_n":6,"armed_at":"2026-11-28 18:08:55"}
+[18:09:22] PASS QA24-23 — board settled the first position as the tree grew | expected: settled_n >= 1 | actual: {"baseline_n":0,"settled_n":6,"armed_at":"2026-11-28 18:08:55"}
+[18:09:22]   evidence written: qa24-24-general-awards.csv (1 rows)
+[18:09:22]   general awards: [{"id":1,"seq":0,"username":"QA24_Sponsor","level":1,"amount":"2000.00","status":"credited"}]
+[18:09:22] PASS QA24-24 — one general award of ₱2,000 to position #1 | expected: 1 award, 2000.00 | actual: 1 awards, 2000.00
+[18:09:22]   general harvest page status 200
+[18:09:22] PASS QA24-25 — general harvest position view renders | expected: HTTP 200 | actual: HTTP 200
+[18:09:23] PASS QA24-22 — admin team harvest ledger renders | expected: HTTP 200 | actual: HTTP 200
+[18:09:23] QA24_Sponsor sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA24_Sponsor! You are signed in.
+[18:09:25] PASS QA24-21 — member Team Harvest tab renders | expected: HTTP 200 with 1,000 | actual: HTTP 200, amount present
+[18:09:25] --- Part 6 — late activations (QA24-05, QA24-12, QA24-06, QA24-18)
+[18:09:26]   register QA24_Member_D        mode=pending  status=200 user=#1365 msg=Welcome! Your account is pending. Activate it from Membership when you are ready.
+[18:09:27] QA24_Member_D sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA24_Member_D! You are signed in.
+[18:09:27]   proof QA24-D-REJECT status=200 msg=Your payment proof is with the review team. You will become active as soon as it is approved.
+[18:09:28]   reject activation #5: status=200 msg=Activation #5 rejected. The member is back to pending and can try again.
+[18:09:28] PASS QA24-05 — rejected proof leaves D pending and pays nothing | expected: pending + rejected | actual: {"member_status":"pending","status":"rejected"} | msg: Activation #5 rejected. The member is back to pending and can try again.
+[18:09:29]   proof QA24-D-002   status=200 msg=Your payment proof is with the review team. You will become active as soon as it is approved.
+[18:09:30]   approve activation #6: status=200 msg=Activation #6 approved — @QA24_Member_D is now active with Package A (₱4,498.00).
+[18:09:30]   D approve message: Activation #6 approved — @QA24_Member_D is now active with Package A (₱4,498.00).
+[18:09:30]   evidence written: qa24-12-from-d.csv (4 rows)
+[18:09:30]   from D: [{"recipient":"QA24_Member_C","level":1,"amount":"500.00","status":"credited","ledger_id":11},{"recipient":"QA24_Member_B","level":2,"amount":"100.00","status":"credited","ledger_id":12},{"recipient":"QA24_Member_A","level":3,"amount":"50.00","status":"credited","ledger_id":13},{"recipient":"QA24_Sponsor","level":4,"amount":"40.00","status":"credited","ledger_id":14}]
+[18:09:30] PASS QA24-12 — D activation pays all four configured levels | expected: 4 credited rows, L4 Sponsor 40.00 | actual: 4 rows; L4 {"recipient":"QA24_Sponsor","level":4,"amount":"40.00","status":"credited","ledger_id":14}
+[18:09:32]   register QA24_NoPkg_Sponsor   mode=standard status=200 user=#1366 msg=Welcome! Your standard account is ready — you can start shopping.
+[18:09:33]   register QA24_NoPkg_Member    mode=code     status=200 user=#1367 msg=Welcome aboard! Your membership is active with Package A.
+[18:09:33]   evidence written: qa24-06-skipped.csv (3 rows)
+[18:09:33]   from NoPkg_Member: [{"recipient":"QA24_NoPkg_Sponsor","level":1,"amount":"500.00","status":"skipped"},{"recipient":"QA24_Sponsor","level":2,"amount":"100.00","status":"credited"},{"recipient":"admin","level":3,"amount":"50.00","status":"skipped"}]
+[18:09:33] PASS QA24-06 — no-package sponsor is skipped and the next upline is paid | expected: 1 skipped 500 + 1 credited 100 | actual: [{"recipient":"QA24_NoPkg_Sponsor","level":1,"amount":"500.00","status":"skipped"},{"recipient":"QA24_Sponsor","level":2,"amount":"100.00","status":"credited"},{"recipient":"admin","level":3,"amount":"50.00","status":"skipped"}]
+[18:09:33] --- QA24-18 — zero points / disabled package / disabled master switch
+[18:09:34]   register QA24_Zero1           mode=pending  status=200 user=#1368 msg=Welcome! Your account is pending. Activate it from Membership when you are ready.
+[18:09:35]   register QA24_Zero2           mode=pending  status=200 user=#1369 msg=Welcome! Your account is pending. Activate it from Membership when you are ready.
+[18:09:37]   register QA24_Zero3           mode=pending  status=200 user=#1370 msg=Welcome! Your account is pending. Activate it from Membership when you are ready.
+[18:09:37] QA24_Zero1 sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA24_Zero1! You are signed in.
+[18:09:38]   proof QA24-Z1      status=200 msg=Your payment proof is with the review team. You will become active as soon as it is approved.
+[18:09:39]   approve activation #8: status=200 msg=Activation #8 approved — @QA24_Zero1 is now active with Package A (₱4,498.00).
+[18:09:40] QA24_Zero2 sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA24_Zero2! You are signed in.
+[18:09:40]   proof QA24-Z2      status=200 msg=Your payment proof is with the review team. You will become active as soon as it is approved.
+[18:09:41]   approve activation #9: status=200 msg=Activation #9 approved — @QA24_Zero2 is now active with Package A (₱4,498.00).
+[18:09:42] QA24_Zero3 sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA24_Zero3! You are signed in.
+[18:09:43]   proof QA24-Z3      status=200 msg=Your payment proof is with the review team. You will become active as soon as it is approved.
+[18:09:43]   approve activation #10: status=200 msg=Activation #10 approved — @QA24_Zero3 is now active with Package A (₱4,498.00).
+[18:09:43]   evidence written: qa24-18-zero-points.csv (3 rows)
+[18:09:43] PASS QA24-18 — three zero-point activations stamp zeros | expected: each activation binary_points=0, binary_total=0.00 | actual: [{"points":0,"total":"0.00"},{"points":0,"total":"0.00"},{"points":0,"total":"0.00"}]
+[18:09:43]   binary_volume rows: 16 (not asserted: the earlier pairs legally wrote volume)
+[18:09:43] --- Part 7 — reconcile, tie out (QA24-27, QA24-28)
+[18:09:45]   $ php bin/wallet_reconcile.php → exit 0
+[18:09:45]     | EcoWealth finance reconciliation
+[18:09:45]     |   database:          ecowealth_sneat (127.0.0.1)
+[18:09:45]     |   accounts checked:  19
+[18:09:45]     |   accounts with ledger: 4
+[18:09:45]     | 
+[18:09:45]     | Wallets
+[18:09:45]     |   OK — every wallet matches its ledger on both buckets.
+[18:09:45]     | 
+[18:09:45]     | Commissions
+[18:09:45]     |   credited awards:   14 (4,040.00)
+[18:09:45]     |   skipped awards:    9
+[18:09:45]     |   ledger total:      4,040.00
+[18:09:45]     |   OK — every credited award has its wallet movement and the totals agree.
+[18:09:45]     | 
+[18:09:45]     | Transfers
+[18:09:45]     |   transfers checked: 0
+[18:09:45]     |   OK — every transfer has its sender debit, recipient credit and fee credit.
+[18:09:45]     | 
+[18:09:45]     | Payouts
+[18:09:45]     |   requests checked:  0
+[18:09:45]     |   held by open requests: 0.00
+[18:09:45]     |   OK — every request has its hold, and every rejection its refund.
+[18:09:45]     | 
+[18:09:45]     | Repeat-purchase
+[18:09:45]     |   credited awards:   0 (0.00)
+[18:09:45]     |   pending awards:    0 (0.00) — earned, not in a wallet yet
+[18:09:45]     |   cancelled awards:  0 (0.00) — order cancelled before release, never paid
+[18:09:45]     |   skipped awards:    0
+[18:09:45]     |   voided awards:     0
+[18:09:45]     |   awarded total:     0.00 (pending + credited)
+[18:09:45]     |   unilevel ledger:   0.00
+[18:09:45]     |   reversals:         0.00
+[18:09:45]     |   OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+[18:09:45]     | 
+[18:09:45]     | Royalty
+[18:09:45]     |   periods:           0 (paid 0 · evaluated 0 · skipped 0)
+[18:09:45]     |   paid awards:       0 (0.00)
+[18:09:45]     |   pending awards:    0 (0.00) — evaluated, not in a wallet yet
+[18:09:45]     |   skipped awards:    0
+[18:09:45]     |   royalty ledger:    0.00
+[18:09:45]     |   OK — every paid award has its wallet movement and every period header agrees with its rows.
+[18:09:45]     | 
+[18:09:45]     | Team Harvest
+[18:09:45]     |   queued positions:  8
+[18:09:45]     |   credited awards:   1 (1,000.00)
+[18:09:45]     |   baseline awards:   0 (0.00) — complete before go-live, never paid
+[18:09:45]     |   team_harvest ledger: 1,000.00
+[18:09:45]     |   counter drift:     0 row(s) · 0 below the baseline
+[18:09:45]     |   OK — every credited award has its wallet movement, every baseline row is unpaid, and the counters agree with a recount.
+[18:09:45]     | 
+[18:09:45]     | General Harvest
+[18:09:45]     |   credited awards:   2 (4,000.00)
+[18:09:45]     |   baseline awards:   0 (0.00)
+[18:09:45]     |   general_harvest ledger: 4,000.00
+[18:09:45]     |   OK — every credited award has its wallet movement, every baseline row is unpaid, and the closed form agrees.
+[18:09:45]     | 
+[18:09:45]     | Product binary
+[18:09:45]     |   credited awards:   1 (100.00)
+[18:09:45]     |   pending awards:    0 (0.00) — earned, not in a wallet yet
+[18:09:45]     |   cancelled awards:  0 (0.00) — order cancelled before release, never paid
+[18:09:45]     |   voided awards:     0
+[18:09:45]     |   awarded total:     100.00 (pending + credited)
+[18:09:45]     |   binary ledger:     100.00
+[18:09:45]     |   reversals:         0.00
+[18:09:45]     |   OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+[18:09:45]     | 
+[18:09:45]     | All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty, team-harvest, general-harvest and product-binary awards reconcile.
+[18:09:45] PASS QA24-27 — wallet reconciliation exits clean | expected: exit 0 | actual: exit 0
+[18:09:45]   sums: {"awards":"4040.00","ledger":"4040.00","team":"1000.00","general":"4000.00","pairs":"100.00"}
+[18:09:45] PASS QA24-28 — awards equal ledger lines | expected: awards == ledger | actual: 4040.00 vs 4040.00
+[18:09:45] PASS QA24-28-b — every credited award has a ledger id | expected: 0 orphans | actual: 0 orphans
+[18:09:45] --- snapshot and cleanup (QA24-29)
+[18:09:45]   evidence written: qa24-29-final-wallets.csv (16 rows)
+[18:09:45]   evidence written: qa24-29-final-queue.csv (8 rows)
+[18:09:45]   evidence written: qa24-29-commissions-before-cleanup.csv (23 rows)
+[18:09:45]   cleanup: 16 QA24 users before, 0 after
+[18:09:45] PASS QA24-29 — QA24 accounts removed by deleting them | expected: 0 QA24 users | actual: 0 users remain
+[18:09:45] 
+[18:09:45] === result: 30 checks executed, 30 passed, 0 failed ===

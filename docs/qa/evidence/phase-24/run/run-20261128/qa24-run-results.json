@@ -1,0 +1,161 @@
+{
+    "database": "ecowealth_sneat",
+    "ran_at": "2026-11-28T18:09:45+08:00",
+    "checks": [
+        {
+            "id": "QA24-07",
+            "title": "QA settings saved",
+            "pass": true
+        },
+        {
+            "id": "QA24-19-seed",
+            "title": "queue seeded before registrations",
+            "pass": true
+        },
+        {
+            "id": "QA24-23-arm",
+            "title": "board armed at N = 0 before the tree is built",
+            "pass": true
+        },
+        {
+            "id": "QA24-08",
+            "title": "Package A points enabled before the first activation",
+            "pass": true
+        },
+        {
+            "id": "QA24-02",
+            "title": "anchor account and pair created",
+            "pass": true
+        },
+        {
+            "id": "QA24-16",
+            "title": "exactly one pair award of \u20b1100 to the sponsor",
+            "pass": true
+        },
+        {
+            "id": "QA24-15",
+            "title": "points stamped on the activation",
+            "pass": true
+        },
+        {
+            "id": "QA24-20",
+            "title": "team harvest pays the Sponsor \u20b11,000 once",
+            "pass": true
+        },
+        {
+            "id": "QA24-03",
+            "title": "invalid registration code refused",
+            "pass": true
+        },
+        {
+            "id": "QA24-04",
+            "title": "member C active with Package A after approval",
+            "pass": true
+        },
+        {
+            "id": "QA24-09",
+            "title": "activation 1 pays the sponsor 500 direct",
+            "pass": true
+        },
+        {
+            "id": "QA24-10",
+            "title": "activation 2 pays A 500 direct and Sponsor 100 indirect",
+            "pass": true
+        },
+        {
+            "id": "QA24-11",
+            "title": "activation 3 pays three levels with the company root skipped",
+            "pass": true
+        },
+        {
+            "id": "QA24-13",
+            "title": "member earnings page renders the ladder and total",
+            "pass": true
+        },
+        {
+            "id": "QA24-14",
+            "title": "admin commission ledger renders",
+            "pass": true
+        },
+        {
+            "id": "QA24-14-export",
+            "title": "admin ledger CSV export",
+            "pass": true
+        },
+        {
+            "id": "QA24-19",
+            "title": "queue holds six positions with no gaps",
+            "pass": true
+        },
+        {
+            "id": "QA24-23",
+            "title": "board settled the first position as the tree grew",
+            "pass": true
+        },
+        {
+            "id": "QA24-24",
+            "title": "one general award of \u20b12,000 to position #1",
+            "pass": true
+        },
+        {
+            "id": "QA24-25",
+            "title": "general harvest position view renders",
+            "pass": true
+        },
+        {
+            "id": "QA24-22",
+            "title": "admin team harvest ledger renders",
+            "pass": true
+        },
+        {
+            "id": "QA24-21",
+            "title": "member Team Harvest tab renders",
+            "pass": true
+        },
+        {
+            "id": "QA24-05",
+            "title": "rejected proof leaves D pending and pays nothing",
+            "pass": true
+        },
+        {
+            "id": "QA24-12",
+            "title": "D activation pays all four configured levels",
+            "pass": true
+        },
+        {
+            "id": "QA24-06",
+            "title": "no-package sponsor is skipped and the next upline is paid",
+            "pass": true
+        },
+        {
+            "id": "QA24-18",
+            "title": "three zero-point activations stamp zeros",
+            "pass": true
+        },
+        {
+            "id": "QA24-27",
+            "title": "wallet reconciliation exits clean",
+            "pass": true
+        },
+        {
+            "id": "QA24-28",
+            "title": "awards equal ledger lines",
+            "pass": true
+        },
+        {
+            "id": "QA24-28-b",
+            "title": "every credited award has a ledger id",
+            "pass": true
+        },
+        {
+            "id": "QA24-29",
+            "title": "QA24 accounts removed by deleting them",
+            "pass": true
+        }
+    ],
+    "totals": {
+        "executed": 30,
+        "passed": 30,
+        "failed": 0
+    }
+}

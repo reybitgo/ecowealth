@@ -1,0 +1,4 @@
+recipient,level,amount,status
+QA24_NoPkg_Sponsor,1,500.00,skipped
+QA24_Sponsor,2,100.00,credited
+admin,3,50.00,skipped

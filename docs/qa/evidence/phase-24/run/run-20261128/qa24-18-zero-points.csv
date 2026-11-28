@@ -1,0 +1,4 @@
+id,user_id,package_id,amount,payment_method,status,reg_code_id,reference_no,proof_path,reject_reason,reviewed_by,reviewed_at,commission_processed_at,binary_processed_at,binary_points,binary_total,created_at,updated_at
+8,1368,1,4498.00,gcash,approved,,QA24-Z1,uploads/proofs/d864bc425c5e9e3a96349824911e1983.png,,1,"2026-11-28 18:09:38","2026-11-28 18:09:39","2026-11-28 18:09:39",0,0.00,"2026-11-28 18:09:38","2026-11-28 18:09:39"
+9,1369,1,4498.00,gcash,approved,,QA24-Z2,uploads/proofs/da56309f8ebc841eaba1eaa0bbdc44bd.png,,1,"2026-11-28 18:09:40","2026-11-28 18:09:41","2026-11-28 18:09:41",0,0.00,"2026-11-28 18:09:40","2026-11-28 18:09:41"
+10,1370,1,4498.00,gcash,approved,,QA24-Z3,uploads/proofs/c129a41709f6c2cad55d61eecc74e853.png,,1,"2026-11-28 18:09:43","2026-11-28 18:09:43","2026-11-28 18:09:43",0,0.00,"2026-11-28 18:09:42","2026-11-28 18:09:43"
