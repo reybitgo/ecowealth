@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.14** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, v3.11 gives QA24-18's no-volume check a query keyed to its three activations, v3.12 makes §3.4's backup command run on this Windows setup, v3.13 gives §5's URL column the full `/ecowealth/system/` path, and v3.14 names the accounts QA24-29 expects to survive so the check no longer depends on demo data a fresh schema never seeds. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
+| **Document version** | **v3.15** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup, v3.3 corrected one quoted amount (the level-4 skip in QA24-11), v3.4 gave QA24-03 a documented fixture for its expired code, v3.5 added QA24-18's missing proof-submission step, v3.6 made QA24-05's reason check reachable before the rejection, v3.7 moved QA24-04's second approval from the screen to the automated checks that perform it, v3.8 makes the admin login the account of the copy rather than a fixed default, v3.9 turns QA24-19's empty-queue recovery into a Blocked stop-and-restart instead of a late seed, v3.10 deletes only the registration codes the run issued, v3.11 gives QA24-18's no-volume check a query keyed to its three activations, v3.12 makes §3.4's backup command run on this Windows setup, v3.13 gives §5's URL column the full `/ecowealth/system/` path, v3.14 names the accounts QA24-29 expects to survive so the check no longer depends on demo data a fresh schema never seeds, and v3.15 makes QA24-29 prove the Team Harvest seed marker was cleared so the cleanup returns the documented pre-test state. These corrections remain manual checks (see the box below and `phase-24-run-report.md`), except item 15, which the automated suite covers |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | the admin account of **this copy** — see §3.1. On the development copy `ecowealth_sneat` that is `admin` / `Admin@123`; a schema installed with `bin\db_install.php` uses the password chosen at install time, because the installer refuses `Admin@123` |
@@ -36,7 +36,8 @@ you never "fix" data.
 > **19 is new in v3.11** and gives QA24-18's no-volume check a query keyed to its three
 > activations; **20 is new in v3.12** and makes §3.4's backup command work on this Windows
 > setup; **21 is new in v3.13** and gives §5's URL column the full `/ecowealth/system/` path;
-> **22 is new in v3.14** and names the accounts QA24-29 expects to survive after the cleanup:
+> **22 is new in v3.14** and names the accounts QA24-29 expects to survive after the cleanup;
+> **23 is new in v3.15** and makes QA24-29 prove the Team Harvest seed marker was cleared:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -146,6 +147,14 @@ you never "fix" data.
 >     five demo members of a development copy (`juan`, `maria`, `peter`, `sarah`, `david`,
 >     `database/seeds/005_demo_tree.sql`) appear only as an extra that the backup-restore path in
 >     step 5 keeps — the business reset removes every member by design.
+>
+> 23. **QA24-29 proves the Team Harvest seed marker was cleared.** The cleanup removed the `QA24…`
+>     members and their queue rows, but nothing in the check looked at `team_harvest_ledger_since`:
+>     the hidden setting `bin\harvest_queue_seed.php` wrote in Part 1, which the settings card never
+>     shows and QA24-07's nine controls therefore never restore. Step 5 now names the value, gives
+>     the query that must return an empty `value` after the business reset (or the pre-run value
+>     after a backup restore), and the expected result lists it beside the unarmed board. The queue
+>     is no longer marked live, so a repeat run starts where this one did.
 
 ---
 
@@ -1693,8 +1702,9 @@ is a blocker, not something to work around.
    `general_harvest_board` is a **singleton**: it is not a child of `users`, so the member delete
    cannot cascade it, and it stays armed (`baseline_n = 0`, `settled_n` above 0). That is what makes
    the next `wallet_reconcile.php` fail `board_bounds`. Do **not** edit the board by hand. Use the
-   supported business reset — its *Return the General Harvest board to unarmed* step also clears the
-   Team Harvest seed marker (`team_harvest_ledger_since`):
+   supported business reset. Besides returning the board, the reset clears the Team Harvest seed
+   marker (`team_harvest_ledger_since`) in its settings-metadata step — the hidden value that made
+   the queue live in Part 1 and that no settings control shows:
 
    ```powershell
    cd C:\laragon\www\ecowealth\system
@@ -1708,12 +1718,21 @@ is a blocker, not something to work around.
 
    A business reset deletes **every member and every business row** (it keeps the staff accounts, the
    catalogue and the settings). On a copy whose demo members must survive, restore the pre-run backup
-   from §3.4 instead — that also returns the board to unarmed. Either way, the board must read
-   `NULL, NULL, NULL, 0` before step 6:
+   from §3.4 instead — that also returns the board to unarmed and the seed marker to the value the
+   copy had before the run. Either way, the board must read `NULL, NULL, NULL, 0` before step 6:
 
    ```sql
    SELECT baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board;
    SELECT COUNT(*) FROM general_harvest_awards;
+   ```
+
+   Check the seed marker as well. It is not one of QA24-07's nine controls, so step 1's settings
+   restore never touches it. After the reset its `value` must be **empty** — the shipped default and
+   the state a clean copy starts in; after a backup restore it holds whatever the copy had before
+   the run, which is also its pre-test state:
+
+   ```sql
+   SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since';
    ```
 
 6. Run `php bin\wallet_reconcile.php` once more.
@@ -1727,6 +1746,8 @@ is a blocker, not something to work around.
   business reset in step 5 removes them with every other member.
 - The board is unarmed — `baseline_n`, `armed_at` and `armed_by` NULL, `settled_n` **0** — and
   `general_harvest_awards` is empty.
+- `team_harvest_ledger_since` is back to its pre-test value — **empty** after step 5's reset — so
+  the queue is not left marked live and a repeat run starts from the same state this one did.
 - Reconcile exits **0**.
 
 **If it fails** — never delete a row that is not part of the run: member accounts match `QA24\_%`,

@@ -445,6 +445,20 @@ row and correction list (item 22) record the change.
 
 **Suggested correction:** include `team_harvest_ledger_since` in the cleanup restore (clear it with the supported seed/reset path), or state that the reliable finish is a reset/restore of the pre-run backup.
 
+**Resolution (walkthrough v3.15):** QA24-29 no longer leaves the marker implicit. Step 5 now says
+which path clears it — the business reset writes `team_harvest_ledger_since` back to `''` in its
+settings-metadata step (the v3.2 wording wrongly attached the clear to the board step), and the
+pre-run backup restore returns it to the value the copy had before Part 1 — and adds the query the
+tester runs, `SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since'`, which must
+return an empty `value` on the reset path. The expected result lists the cleared marker beside the
+unarmed board, so a repeat run starts from the documented pre-test state.
+
+The behaviour is already implemented and tested: `DatabaseResetService` clears the key in its reset
+metadata, and `P21C-T17` in `GeneralHarvestBaselineTest` asserts that a business reset returns the
+marker to its shipped default `''` before refusing an arm on the new network. DOC-01's
+re-verification run on `ecowealth_sneat_doc01_verify` observed the same clear after the post-cleanup
+reset. The walkthrough's version row and correction list (item 23) record the change.
+
 ---
 
 ## Not verified by this execution
