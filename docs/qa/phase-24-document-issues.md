@@ -64,6 +64,15 @@ restore as the alternative for a copy whose demo members must survive. The reset
 (DOC-14); `wallet_reconcile.php` then exits 0. QA24-29's expected result now includes the unarmed
 board, and `QA24-29-reset.txt` records the reset output.
 
+The step was re-run on a throwaway schema (`ecowealth_sneat_doc01_verify`, installed from
+`bin/db_install.php` and dropped afterwards) in the exact post-cleanup state: reconcile exited 1 with
+the two problems above, the reset returned the board to `(NULL, NULL, NULL, 0)`, cleared the seed
+marker and emptied the awards, and the next reconcile exited 0. The run also exposed a bootstrap gap:
+`bin/db_reset.php` did not load `app/helpers.php` or `app/database.php`, so its General Harvest
+verification died on `setting_int()`/`db()` and the reset exited 1 even though the data was reset. The
+CLI now loads both like the other `bin` jobs; the reset verifies every check (including
+`GeneralHarvestService::reconcile clean`) and exits 0.
+
 ---
 
 ## DOC-02 — QA24-11 quotes the wrong level-4 skipped amount

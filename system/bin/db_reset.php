@@ -39,7 +39,9 @@ if (PHP_SAPI !== 'cli') {
 $root = dirname(__DIR__);
 
 require_once $root . '/app/config.php';
+require_once $root . '/app/helpers.php';
 require_once $root . '/app/autoload.php';
+require_once $root . '/app/database.php';
 
 date_default_timezone_set(APP_TIMEZONE);
 
