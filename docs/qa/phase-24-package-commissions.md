@@ -12,7 +12,7 @@ you never "fix" data.
 | | |
 |---|---|
 | **Phase** | 24 — package commissions: registration, activation, direct, indirect, binary package, team harvest and general harvest |
-| **Document version** | **v3.2** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changes only the QA24-29 cleanup, which remains a manual check (see the box below and `phase-24-run-report.md`) |
+| **Document version** | **v3.3** — v3.1's amounts and states were reproduced by an automated HTTP run against a fresh schema (`ecowealth_sneat_qa24`); v3.2 changed the QA24-29 cleanup and v3.3 corrects one quoted amount (the level-4 skip in QA24-11). Both remain manual checks (see the box below and `phase-24-run-report.md`) |
 | **Who this is for** | A tester with no prior knowledge of EcoWealth |
 | **App URL** | `http://localhost/ecowealth/system/` |
 | **Admin login** | `admin` / `Admin@123` |
@@ -26,7 +26,7 @@ you never "fix" data.
 > `docs/qa/evidence/phase-24/run/`. Items 1–4 were already v2 fixes; **5–9 are new in v3** and were
 > each confirmed by the run — except item 8's replacement cleanup, which is the workaround for the
 > constraint that stopped the original delete and was not itself executed end to end. **10 is new in
-> v3.2** and finishes that cleanup:
+> v3.2** and finishes that cleanup. **11 is new in v3.3** and corrects one quoted amount:
 >
 > 1. The settings and Package A's binary points are now switched on **before** the first package
 >    activation. The system stamps points **when the member activates**; switching the feature on
@@ -55,6 +55,9 @@ you never "fix" data.
 >     awards away, but `general_harvest_board` is a singleton and stays armed, so the next
 >     `wallet_reconcile.php` exits 1 (`board_bounds`). QA24-29 step 5 now runs `bin\db_reset.php`,
 >     which returns the board to unarmed; the deletes alone are not a finish.
+> 11. **QA24-11's level-4 skip is ₱40, not ₱50.** The four rows for `QA24_Member_C` credit
+>     ₱500 / ₱100 / ₱50 at levels 1–3 and **skip ₱40** at level 4 (`admin`, the company root) — the
+>     same figure the row shows and QA24-12 states.
 
 ---
 
@@ -872,7 +875,7 @@ as the member named in each check (Window B) and as admin (Window A).
   - level 4 `admin` **₱40** — **skipped**, reason *recipient has no package*, no ledger link.
 - `QA24_Member_B` direct ₱500; `QA24_Member_A` direct ₱500 + indirect ₱100; `QA24_Sponsor` indirect
   total **₱150** (₱100 from B + ₱50 from C).
-- The skipped ₱50 is not redirected to anyone — that is the level-4 company-root skip, and this check
+- The skipped ₱40 is not redirected to anyone — that is the level-4 company-root skip, and this check
   is where you see it.
 
 ### QA24-13 — The member sees the level breakdown and can export

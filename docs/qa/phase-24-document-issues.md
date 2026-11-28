@@ -94,6 +94,11 @@ QA24-12 also says “The level-4 amount is **₱40**, not ₱50.” The run's co
 
 **Suggested correction:** change the final bullet to **₱40** (and, preferably, “level-4 company-root skip”), matching the table and QA24-12.
 
+**Resolution (walkthrough v3.3):** QA24-11's final bullet now says **₱40**, matching the table's
+level-4 row and QA24-12; the run's commission evidence (`qa24-09-commissions.csv`, row 10) has
+`admin`, level 4, `40.00`, skipped. The walkthrough's version row and correction list record the
+change.
+
 ---
 
 ## DOC-03 — QA24-03's expired-code case cannot be run on a clean copy
