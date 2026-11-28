@@ -721,7 +721,7 @@ return [
         assert_contains('1000 pts left', $html);
         assert_contains('0 pts right', $html);
         assert_contains(money(50.00), $html);
-        assert_contains('View statement', $html);
+        assert_contains('Open statement', $html);
 
         /* Downward-only copy within the binary tile. */
         assert_not_contains('upline', $html);

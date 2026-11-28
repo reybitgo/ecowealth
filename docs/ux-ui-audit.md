@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-43 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (28 November 2026):** UX-01–UX-50 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change.
 
 ---
 
@@ -471,7 +471,15 @@ Three separate screens show build-phase numbers to end users: the product page, 
 | UX-49 | Success/error flash alerts use `mb-6` while in-page stale/info banners use `mb-4`, so stacked notices have uneven gaps | `helpers.php:309`, page banners | One notice spacing token |
 | UX-50 | Storefront search and admin product search use different visual patterns (input group with button vs plain search + Filter) | `shop/catalog.php:43-62`, `admin/products/index.php:55-80` | Keep the labelled filter bar pattern; make the storefront search a labelled field too |
 
-**Fixed since the audit:** UX-45 — Cancel on Change password returns to Profile (commit `3aa68ad`); the page was checked in a browser on 26 November 2026.
+**Statuses (28 November 2026):** every item in this table is fixed.
+
+- **UX-44** — the notification count is taken from the notes and the bell renders only when that count is above zero (`app/layout/app_header.php`), so neither an empty bell nor a "0 new" badge can appear. `ViewTest`'s UX-25 case pins the empty and populated states.
+- **UX-45** — the page header's "Back to profile" and the card's Cancel action both return to `profile` (commit `3aa68ad`); the page was checked in a browser on 26 November 2026 and `ViewTest` pins the header link.
+- **UX-46** — the Settings page header no longer carries the section-list badge; the tab strip below is the single list of sections (`admin/settings/index.php`). `AdminSettingsLiveTest` rejects the badge.
+- **UX-47** — the back-office sidebar entry reads **Shop (admin view)**, so an administrator knows the shop opens inside the admin shell rather than as the member storefront (`app/layout/nav.php`); the member portal keeps **Shop**. `ViewTest`'s UX-47 case pins both labels.
+- **UX-48** — every link to a statement reads **Open statement** with the quiet `btn-label-primary` weight: the member dashboard's Product binary tile, the Earnings header, the Payouts and Send funds headers and the no-withdrawal card. "View statement" and "Open e-wallet" are gone. `ViewTest`'s UX-48 sweep rejects the old labels and requires the shared style.
+- **UX-49** — every alert banner uses the 24 px `mb-6` gap, matching the flash messages from `flash_render()`, so stacked notices share one rhythm. `ViewTest`'s UX-49 sweep rejects `mb-4` on an alert.
+- **UX-50** — the storefront search is the shared labelled filter bar: a `Search` label tied to `shop-filter-q`, the input, `Filter` and the visible `Clear filters`, replacing the input-group with the icon. `ViewTest`'s UX-50 case reads the rendered form and rejects the old pattern.
 
 ---
 

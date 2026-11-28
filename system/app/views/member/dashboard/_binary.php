@@ -63,7 +63,7 @@ $pairValue = money(round($pairPoints * (float) setting_float('binary_pair_pct', 
                     <h5 class="card-title mb-0">Product binary</h5>
                 </div>
                 <a href="<?= e(url('earnings?ledger=binary')) ?>" class="btn btn-sm btn-label-primary">
-                    View statement
+                    Open statement
                 </a>
             </div>
             <div class="card-body">

@@ -43,17 +43,19 @@ $live = $live ?? [
 <?= View::capture('shop/catalog/_heading', ['pager' => $pager, 'filters' => $filters]) ?>
 
                 <div class="d-flex flex-column align-items-end gap-1">
-                  <form method="GET" action="<?= e(url('shop')) ?>" class="d-flex gap-2" role="search">
-                    <div class="input-group">
-                      <span class="input-group-text"><i class="icon-base bx bx-search"></i></span>
+                  <form method="GET" action="<?= e(url('shop')) ?>" class="catalog-filter d-flex flex-wrap align-items-end gap-2" role="search">
+                    <div class="filter-field filter-field-wide">
+                      <label class="form-label" for="shop-filter-q">Search</label>
                       <input
                         type="search"
-                        class="form-control"
+                        id="shop-filter-q"
                         name="q"
+                        class="form-control"
                         value="<?= e($query) ?>"
                         placeholder="Search products…"
-                        aria-label="Search products"
                       />
+                    </div>
+                    <div class="filter-actions">
                       <button type="submit" class="btn btn-primary">Filter</button>
 <?php if ($query !== ''): ?>
                       <a href="<?= e(url('shop')) ?>" class="btn btn-label-secondary">

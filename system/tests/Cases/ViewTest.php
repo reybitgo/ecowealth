@@ -986,12 +986,12 @@ return [
         }
 
         assert_contains(
-            'class="btn btn-label-primary"><i class="icon-base bx bx-wallet me-1"></i> Open e-wallet</a>',
+            'class="btn btn-label-primary"><i class="icon-base bx bx-list-ul me-1"></i> Open statement</a>',
             $html,
-            'the e-wallet cross-link matches the statement links'
+            'the statement cross-link matches the other statement links'
         );
         assert_not_contains(
-            'class="btn btn-primary"><i class="icon-base bx bx-wallet me-1"></i> Open e-wallet</a>',
+            'class="btn btn-primary"><i class="icon-base bx bx-list-ul me-1"></i> Open statement</a>',
             $html,
             'the cross-link does not take the page primary'
         );
@@ -1585,6 +1585,120 @@ return [
         $html = $render('admin', 'admin/dashboard', ['stats' => $adminStats, 'recent' => []]);
 
         assert_contains(format_date('now'), $html, 'the welcome date uses the shared date format');
+    },
+
+    'UX-47 the admin shop link names the view it opens' => function () use ($render, $adminStats): void {
+        test_signed_in_as(test_user('ux47_admin', 'admin'));
+
+        $admin = $render('admin', 'admin/dashboard', ['stats' => $adminStats, 'recent' => []]);
+
+        assert_contains('<div>Shop (admin view)</div>', $admin, 'the back office says which shell the shop opens in');
+        assert_contains('href="' . url('shop') . '"', $admin);
+        assert_not_contains('<div>Storefront</div>', $admin, 'the old ambiguous label is gone');
+
+        test_signed_in_as(test_user('ux47_member'));
+
+        $member = $render('member', 'shop/catalog', [
+            'products'    => [],
+            'available'   => [],
+            'pager'       => new Paginator(0, 12, 1),
+            'filters'     => ['q' => ''],
+            'shop_open'   => true,
+            'page_title'  => 'Shop',
+            'current_nav' => 'shop',
+        ]);
+
+        assert_contains('<div>Shop</div>', $member, 'the member portal keeps the plain label');
+        assert_not_contains('Shop (admin view)', $member);
+    },
+
+    'UX-48 every statement link shares one label and the quiet style' => function (): void {
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+        $links     = 0;
+
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root)) as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            if (str_contains($source, 'Open e-wallet') || str_contains($source, 'View statement')) {
+                $offenders[] = $file->getPathname() . ': a statement link keeps an old label';
+            }
+
+            /* The label and the class must belong to the same anchor, so a
+             * neighbour's class never vouches for a statement link. */
+            preg_match_all(
+                '/<a\b[^>]*class="([^"]*)"[^>]*>(?:(?!<\/a>)[\s\S])*?Open statement/',
+                $source,
+                $matches,
+                PREG_SET_ORDER
+            );
+
+            foreach ($matches as $match) {
+                $links++;
+                $classes = preg_split('/\s+/', trim($match[1])) ?: [];
+
+                if (!in_array('btn-label-primary', $classes, true)) {
+                    $offenders[] = $file->getPathname() . ': Open statement uses "' . $match[1] . '"';
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'the statement labels and their weight agree');
+        assert_true($links >= 3, 'the sweep finds the header statement links');
+    },
+
+    'UX-49 every notice uses one spacing token' => function (): void {
+        $root      = dirname(__DIR__, 2);
+        $offenders = [];
+
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/app/views')) as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            if (preg_match('/class="alert[^"]*\bmb-4\b/', $source) === 1) {
+                $offenders[] = $file->getPathname() . ': an alert uses mb-4';
+            }
+        }
+
+        assert_same([], $offenders, 'stacked notices share the 24px gap');
+
+        $flash = (string) file_get_contents($root . '/app/helpers.php');
+        assert_contains('justify-content-between mb-6" role="alert"', $flash, 'flash alerts use the same token');
+    },
+
+    'UX-50 the storefront search is a labelled filter field' => function () use ($render): void {
+        test_signed_in_as(test_user('ux50_member'));
+
+        $html = $render('member', 'shop/catalog', [
+            'products'    => [],
+            'available'   => [],
+            'pager'       => new Paginator(0, 12, 1),
+            'filters'     => ['q' => 'probe'],
+            'shop_open'   => true,
+            'page_title'  => 'Shop',
+            'current_nav' => 'shop',
+        ]);
+
+        preg_match('/<form[^>]*role="search"[^>]*>([\s\S]*?)<\/form>/', $html, $matches);
+
+        assert_true($matches !== [], 'the catalogue search form renders');
+
+        $form = $matches[0];
+
+        assert_contains('<label class="form-label" for="shop-filter-q">Search</label>', $form);
+        assert_contains('id="shop-filter-q"', $form);
+        assert_contains('name="q"', $form);
+        assert_contains('value="probe"', $form);
+        assert_contains('class="btn btn-primary">Filter</button>', $form);
+        assert_contains('Clear filters', $form);
+        assert_not_contains('input-group', $form, 'the old input-group search is gone');
     },
 
     'Escaping is applied everywhere user text is printed' => function (): void {

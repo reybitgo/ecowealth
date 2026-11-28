@@ -113,7 +113,7 @@ $action = url('admin/settings');
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
+              <div class="alert alert-warning d-flex align-items-start gap-2 mb-6 d-none" data-live-stale role="status" aria-live="polite">
                 <i class="icon-base bx bx-error-circle fs-5"></i>
                 <div>
                   <strong>These settings changed in another tab.</strong>
@@ -132,8 +132,6 @@ $action = url('admin/settings');
         . ' the Royalty bonus and the Team Harvest bonus are earned and what transfers may move.'
         . ' Each card saves on its own and every change is recorded in the audit log.'
         . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
-    'actions'     => '<span class="badge bg-label-primary text-wrap text-start">'
-        . 'General, payments, payouts, fulfilment, commissions &amp; transfers</span>',
 ]) ?>
 
 <?= View::capture('admin/settings/_tabs') ?>

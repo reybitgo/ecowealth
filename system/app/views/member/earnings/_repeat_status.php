@@ -119,7 +119,7 @@ $nextCopy = match (true) {
                 </div>
                 <div class="card-body">
 <?php if (!$requires): ?>
-                  <div class="alert alert-info py-2 small mb-4">
+                  <div class="alert alert-info py-2 small mb-6">
                     <i class="icon-base bx bx-info-circle me-1"></i>
                     The monthly Active rule is currently turned off, so every eligible member is paid
                     regardless of their purchases. The figures below are still recorded, but they do not

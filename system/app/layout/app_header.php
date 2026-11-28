@@ -38,8 +38,11 @@ $page_title  = $page_title ?? $brand_name;
 $page_css    = $page_css ?? [];
 $page_js     = $page_js ?? [];
 $page_styles = $page_styles ?? '';
-$nav_notes   = $nav_notes ?? [];
-$nav_badges  = $nav_badges ?? [];
+$nav_notes      = $nav_notes ?? [];
+/* A zero count never reaches the shell: no bell, no "0 new" badge
+ * (UX-25, UX-44). */
+$nav_note_count = count($nav_notes);
+$nav_badges     = $nav_badges ?? [];
 $current_nav = $current_nav ?? ($layout === 'plain' ? '' : nav_current_key($layout, $me));
 $has_menu    = $layout !== 'plain';
 
@@ -219,7 +222,7 @@ $html_class  = $has_menu
                 <!-- Notifications: only when there is something to show. A bell
                      that can only open an empty panel promises a notification
                      centre the application does not have (UX-25). -->
-<?php if ($nav_notes !== []): ?>
+<?php if ($nav_note_count > 0): ?>
                 <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-2">
                   <a
                     class="nav-link dropdown-toggle hide-arrow btn btn-icon btn-text-secondary rounded-pill"
@@ -227,7 +230,7 @@ $html_class  = $has_menu
                     data-bs-toggle="dropdown"
                     data-bs-auto-close="outside"
                     aria-expanded="false"
-                    aria-label="Notifications (<?= count($nav_notes) ?> new)"
+                    aria-label="Notifications (<?= $nav_note_count ?> new)"
                   >
                     <i class="icon-base bx bx-bell icon-md" aria-hidden="true"></i>
                     <span class="position-absolute top-0 start-50 translate-middle-y badge badge-dot bg-danger mt-2 border"></span>
@@ -236,7 +239,7 @@ $html_class  = $has_menu
                     <li class="border-bottom">
                       <div class="d-flex align-items-center justify-content-between px-4 py-3">
                         <h6 class="mb-0">Notifications</h6>
-                        <span class="badge rounded-pill bg-label-primary"><?= count($nav_notes) ?> new</span>
+                        <span class="badge rounded-pill bg-label-primary"><?= $nav_note_count ?> new</span>
                       </div>
                     </li>
                     <li>

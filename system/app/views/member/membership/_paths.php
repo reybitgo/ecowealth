@@ -231,7 +231,7 @@ declare(strict_types=1);
                 </div>
               </div>
 <?php elseif ($open_activation !== null): ?>
-              <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+              <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-time-five fs-4"></i>
                 <div>
                   <strong>Activation in progress.</strong>
@@ -246,14 +246,14 @@ declare(strict_types=1);
                 </div>
               </div>
 <?php elseif ($status === 'suspended'): ?>
-              <div class="alert alert-danger d-flex align-items-start gap-2 mb-4" role="alert">
+              <div class="alert alert-danger d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-block fs-4"></i>
                 <div class="small">
                   This account is suspended, so it cannot be activated. Please contact support.
                 </div>
               </div>
 <?php elseif ($is_standard): ?>
-              <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+              <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-store fs-4"></i>
                 <div class="small">
                   <strong>Standard membership.</strong>
@@ -263,7 +263,7 @@ declare(strict_types=1);
                 </div>
               </div>
 <?php elseif ($has_package): ?>
-              <div class="alert alert-success d-flex align-items-start gap-2 mb-4" role="alert">
+              <div class="alert alert-success d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-check-shield fs-4"></i>
                 <div class="small">
                   <strong>Active associate.</strong>

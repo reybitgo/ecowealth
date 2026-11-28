@@ -33,7 +33,7 @@ $hasFilters = (string) $filters['type'] !== ''
             : 'A ₱500 direct referral lands here the moment someone you sponsored activates a package. '
                 . 'Your e-wallet balance and statement are the other half of the picture.',
         'action_href'  => $hasFilters ? 'earnings' : 'wallet',
-        'action_label' => $hasFilters ? 'Clear filters' : 'Open e-wallet',
+        'action_label' => $hasFilters ? 'Clear filters' : 'Open statement',
     ]);
 ?>
                         </td>

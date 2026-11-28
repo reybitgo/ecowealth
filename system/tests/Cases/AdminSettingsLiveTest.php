@@ -293,5 +293,9 @@ return [
         assert_contains('data-settings-tabs', $html);
         assert_same(8, substr_count($html, 'Save settings'), 'one save button per card');
         assert_same(8, substr_count($html, 'name="section"'), 'one section marker per form');
+
+        /* UX-46: the tab strip already lists the sections; the header does not repeat them. */
+        assert_not_contains('General, payments, payouts, fulfilment, commissions', $html);
+        assert_not_contains('badge bg-label-primary text-wrap', $html, 'the duplicated section badge is gone');
     },
 ];

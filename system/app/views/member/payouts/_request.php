@@ -137,18 +137,18 @@ $pendingTotal = round((float) ($pending['total'] ?? 0), 2);
                   </div>
                   <div class="card-body">
 <?php if ($channels === 0): ?>
-                    <div class="alert alert-warning mb-4" role="alert">
+                    <div class="alert alert-warning mb-6" role="alert">
                       <strong>No payout channel is open.</strong>
                       Payouts are temporarily unavailable. Please check back later or contact support.
                     </div>
 <?php elseif ($withdrawable <= 0): ?>
-                    <div class="alert alert-info mb-4" role="alert">
+                    <div class="alert alert-info mb-6" role="alert">
                       <strong>Nothing to withdraw yet.</strong>
                       Commission earnings are withdrawable; admin top-ups, transferred funds and refunds are not.
                       Keep earning and come back when your withdrawable balance grows.
                     </div>
 <?php else: ?>
-                    <div class="alert alert-info mb-4" role="alert">
+                    <div class="alert alert-info mb-6" role="alert">
                       <strong>The minimum payout is <?= e(money($min)) ?>.</strong>
                       You have <?= e(money($withdrawable)) ?> withdrawable, so the request cannot be made yet.
                     </div>
@@ -157,8 +157,8 @@ $pendingTotal = round((float) ($pending['total'] ?? 0), 2);
                       <a href="<?= e($profile_url) ?>" class="btn btn-label-primary">
                         <i class="icon-base bx bx-credit-card me-1"></i> Payout details
                       </a>
-                      <a href="<?= e(url('wallet')) ?>" class="btn btn-label-secondary">
-                        <i class="icon-base bx bx-wallet me-1"></i> Open e-wallet
+                      <a href="<?= e(url('wallet')) ?>" class="btn btn-label-primary">
+                        <i class="icon-base bx bx-list-ul me-1"></i> Open statement
                       </a>
                     </div>
                   </div>

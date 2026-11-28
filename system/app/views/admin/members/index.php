@@ -46,7 +46,7 @@ $generalHarvest = $general_harvest ?? null;
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
               <div
-                class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none"
+                class="alert alert-warning d-flex align-items-start gap-2 mb-6 d-none"
                 data-live-stale
                 role="status"
                 aria-live="polite"

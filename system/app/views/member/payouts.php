@@ -53,7 +53,7 @@ $live = $live ?? [
               data-live-interval="<?= (int) $live['interval'] ?>"
               data-live-config="config"
             >
-              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
+              <div class="alert alert-warning d-flex align-items-start gap-2 mb-6 d-none" data-live-stale role="status" aria-live="polite">
                 <i class="icon-base bx bx-error-circle fs-5"></i>
                 <div>
                   <strong>Your payout page changed in another tab.</strong>

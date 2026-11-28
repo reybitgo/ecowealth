@@ -70,7 +70,9 @@ return [
                 'label' => 'Overview',
                 'items' => [
                     ['key' => 'admin.dashboard', 'label' => 'Dashboard', 'path' => 'admin', 'icon' => 'bx-home-smile', 'guard' => 'admin', 'phase' => 1],
-                    ['key' => 'admin.storefront', 'label' => 'Storefront', 'path' => 'shop', 'icon' => 'bx-store', 'guard' => 'admin', 'phase' => 1, 'target' => '_blank'],
+                    /* Opens the shop inside the back-office shell, so the label
+                     * says which view the administrator is getting (UX-47). */
+                    ['key' => 'admin.storefront', 'label' => 'Shop (admin view)', 'path' => 'shop', 'icon' => 'bx-store', 'guard' => 'admin', 'phase' => 1, 'target' => '_blank'],
                     /* Admins may shop too (the member guard admits them), so the
                      * drawer's cart has a home in this sidebar as well. */
                     ['key' => 'admin.cart', 'label' => 'Cart', 'path' => 'cart', 'icon' => 'bx-cart', 'guard' => 'admin', 'phase' => 4, 'badge' => 'cart'],

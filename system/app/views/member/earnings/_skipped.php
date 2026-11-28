@@ -15,7 +15,7 @@ $skipped = (int) ($totals['skipped'] ?? 0);
 ?>
               <div data-live-region="earnings-skipped"<?= $skipped > 0 ? '' : ' hidden' ?>>
 <?php if ($skipped > 0): ?>
-                <div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
+                <div class="alert alert-warning d-flex align-items-start gap-2 mb-6" role="alert">
                   <i class="icon-base bx bx-info-circle fs-4"></i>
                   <div class="small">
                     <strong><?= $skipped ?> award<?= $skipped === 1 ? ' was' : 's were' ?> skipped.</strong>

@@ -67,7 +67,7 @@ $live = $live ?? [
               data-live-interval="<?= (int) $live['interval'] ?>"
               data-live-config="<?= e(Live::CONFIG) ?>"
             >
-              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
+              <div class="alert alert-warning d-flex align-items-start gap-2 mb-6 d-none" data-live-stale role="status" aria-live="polite">
                 <i class="icon-base bx bx-error-circle fs-5"></i>
                 <div>
                   <strong>Your checkout changed in another tab.</strong>
@@ -87,7 +87,7 @@ $live = $live ?? [
         . '<i class="icon-base bx bx-arrow-back me-1"></i> Back to cart</a>',
 ]) ?>
 
-              <div class="alert alert-info d-flex align-items-start gap-2 mb-4 d-none" data-checkout-draft role="status" aria-live="polite">
+              <div class="alert alert-info d-flex align-items-start gap-2 mb-6 d-none" data-checkout-draft role="status" aria-live="polite">
                 <i class="icon-base bx bx-history fs-5"></i>
                 <div>
                   <strong>Your checkout details were restored.</strong>
